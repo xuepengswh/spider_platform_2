@@ -1,0 +1,31 @@
+前端代号解读
+"countryName": "中国"--------国家
+"cronExpression": "",
+"executionTimes": 2,--------执行次数，int类型，1,2,3,4,5....
+"executionType": "1",---------:1 单次执行,2 多次执行，多次执行要考虑增量爬虫
+"id": "5f379d7698ff43271c5ec4a0",------对应mongodb的_id
+"langInfoKey": "zh",--------语言代号----langCode
+"langInfoValue": "中文",
+"outQueue":     0,-------在队列里是0，出去了是1
+"proxyProductKey": "飞猪代理1",
+"proxyProductValue": "http://www.baidu.com",
+"status": "2",----------------
+	NORMAL("1", "未开始"),	多次爬虫 已经完成，也是未开始状态
+    EXTRACTING("2", "进行中"), 默认进行中
+    PAUSE("3", "已暂停"),redis有url，暂时不爬
+    STOP("4", "已停止"),	爬虫任务不在爬虫，url舍弃，（删除任务也舍弃）
+    DONE("5", "已完成"),	单次爬虫存储到数据库
+    FAIL("6", "已失败");	爬虫出错，设置失败，（状态，失败原因更新到mongodb） ----爬虫状态码
+"storeQueue": "0",------------0 只存到mongodb，1 两个都要存
+"taskCode": "214bff8a",
+"taskName": "测试任务01",
+"templateInfo": "{\"start_url\":\"http://www.mod.gov.cn/regulatory/node_46988.htm\",\"second_page_value\":2,\"webType\":0,\"end_page_value\":4,\"url_type\":\"http://www.mod.gov.cn/regulatory/node_46988_%d.htm\",\"lineListXpath\":\"//ul[@id='main-news-list']/li/a/@href\",\"xpaths\":{\"title\":\"//div[@class='article-header']/h1/text()\",\"key01\":\"//div[@class='article-header']/h1/text()\",\"key02\":\"//div[@class='article-header']/h1/text()\",\"contentXpath\":\"//div[@id='article-content']/p/text()\",\"htmlContent\":\"//div[@id='article-content']\"}}",
+"threadNum":     20,
+"timeInterval":     0,
+"useProxy": "0",
+"webSiteName": "新华网",
+"webSiteTypeKey": "xinwen",
+"webSiteTypeValue": "新闻",
+"webSiteUrl": "http://www.xinhua.com/"
+
+

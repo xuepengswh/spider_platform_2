@@ -193,12 +193,14 @@ class Main():
         else:  # 增量爬虫
             switch = False
             startUrl_urlList = self.get_content_url_list(self.start_url)
-            for startUrl_url in startUrl_urlList:
+            for startUrl_url in startUrl_urlList:   #判断第一页
+                print(startUrl_url)
                 if startUrl_url in self.bloom:
+                    print(startUrl_url,"去重成功")
                     switch = True
                 else:
                     self.bloom.add(startUrl_url)
-            if not switch:
+            if not switch:  #判断第二页及以后页数
                 for pageIndex in range(self.second_page_value,self.second_page_value):
                     swtich2 = False
                     theUrl = self.url_type % pageIndex  #从第二页开始构造链接

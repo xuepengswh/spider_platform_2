@@ -21,7 +21,7 @@ def get_data(url, data):
     endData = {}
 
     for key,keyxpath in tempData.items():
-        if type(keyxpath)==int or  (not keyxpath.startswith(r"//") ):
+        if type(keyxpath)==int or  (not keyxpath.startswith(r"//")):
             continue
 
         if key == "htmlContentXpath": #htmlContentXpath单独处理

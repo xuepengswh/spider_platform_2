@@ -1,0 +1,30 @@
+存储数据字段总结以及字段说明
+url
+网站名
+langCode----langInfoKey
+taskCode
+固定的
+htmlContent
+title
+
+
+
+
+"url"
+"webSite": "网址站点"
+"title": "源文标题"
+"langCode":"语种编码"
+
+"industrialClass": "产业分类例如:公安、司法||计划、经济、体改"
+"organization":  "发文机构/发文机关"
+"countryName": "国别"
+"policyIndexNumber":  "索引号"
+"issuedNumber":"发文字号"
+"subjectClass":  "主题分类"
+"statementTime": "政策发布时间"
+"htmlContent": "内容,带标签"
+"content":"内容,不带标签"
+"abstractContent": "摘要信息"
+"regionProvince":  "区域：省"
+"otherClass":  "其他类型"
+"taskCode":""
