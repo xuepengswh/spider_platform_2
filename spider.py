@@ -88,7 +88,7 @@ class Main():
         self.timeout = 10
 
         self.tempFile_del = open("tempFile", "wb")
-        self.bloomFile = open("tempFile", "rb")
+        self.bloomFile = open("tempFile_1", "rb")
 
     def bloom_readfrom_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort,  password=self.redisPassword, db=self.redisDb)
@@ -106,13 +106,13 @@ class Main():
     def bloom_writeto_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         bloomDbKeyName = self.redis_platform_address + ":bloom:" + self.taskCode
+        if self.bloom:
+            self.bloom.tofile(self.tempFile_del)
+            self.tempFile_del.close()
 
-        self.bloom.tofile(self.tempFile_del)
-        self.tempFile_del.close()
-
-        bloomData = self.bloomFile.read()
-        r.set(bloomDbKeyName, bloomData)
-        self.bloomFile.close()
+            bloomData = self.bloomFile.read()
+            r.set(bloomDbKeyName, bloomData)
+            self.bloomFile.close()
 
     def get_PageUrlList(self):
         """构造翻页链接"""

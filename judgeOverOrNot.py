@@ -34,10 +34,15 @@ def connect_mongo():
     return db
 
 def change_redis_status(redis_keyname,dict_key_name,newvalue):
+    #redis_keyname   状态键值
+    #   dict_key_name   "outQueue"
+    #   newvalue    更新后的outQueue值0
+
+    #   更新redis
     myredis = redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
     keyname_data = myredis.get(redis_keyname)   #获取状态数据
     keyname_data = json.loads(keyname_data)     #换为json数据
-    keyname_data[dict_key_name] = newvalue      #更新数据
+    keyname_data[dict_key_name] = newvalue      #更新数据，将outQueue更新为0
 
     executionType = keyname_data["executionType"]   #获取executionType值
     mongo_id = keyname_data["id"]   #获取id值
@@ -45,9 +50,9 @@ def change_redis_status(redis_keyname,dict_key_name,newvalue):
     keyname_data = json.dumps(keyname_data) #转化为字符串
     myredis.set(redis_keyname,keyname_data) #更新redis
 
-    myMongo = connect_mongo()  #链接mongodbdb数据库
 
-    if executionType=="1":  #单次执行，改为完成状态
+    #   更新mongodb
+    if executionType=="1":  #单次执行，改为完成状态，更改mongodb状态
         myMongo["task_info"].update_one({"_id":ObjectId(mongo_id)},{"$set":{"status":"5"}}) #更新数据
     else:   #多次执行，改为未开始
         myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "1"}})
@@ -56,7 +61,6 @@ def change_mongo_status():
     pass
 
 def connect_db( ):
-    myredis = redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
     redis_key_list = myredis.keys(redis_platform_address+":status:*")
     while True:
         for key_name in redis_key_list:
@@ -70,10 +74,11 @@ def connect_db( ):
                 url_key_name = redis_platform_address+":url:"+task_code
                 num = myredis.llen(url_key_name)
                 if num==0:
-                    pass
+                    #   更改  redis状态和mongodb状态
+                    change_redis_status(key_name, "outQueue", 0)
             else:
                 continue
-            time.sleep(10)
+            time.sleep(3)
 
 if __name__=="__main__":
     #读取配置文件
@@ -92,7 +97,9 @@ if __name__=="__main__":
     mongoPassword = WebConfig.get("mongodb", "password")
     mongoDatabase = WebConfig.get("mongodb", "database")
 
+    myMongo = connect_mongo()  # 链接mongodbdb数据库
+    myredis = redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
 
-
-    key_name = redis_platform_address+":status:e7550030"
-    change_redis_status(key_name,"outQueue",0)
+    # key_name = redis_platform_address+":status:e7550030"
+    # change_redis_status(key_name,"outQueue",0)
+    connect_db()

@@ -11,9 +11,7 @@ def connect_mongo():
     return db
 
 def connect_db():
-    myredis =redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
-    data_key_name = redis_platform_address+":temporary"
-    mymongo_db = connect_mongo()
+
     while True:
         dataNum = myredis.llen(data_key_name)
         if dataNum>1000:
@@ -41,5 +39,10 @@ if __name__=="__main__":
     mongoPassword = WebConfig.get("mongodb", "password")
     mongoDb = WebConfig.get("mongodb", "database")
 
+    #连接数据库
+    myredis = redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
+    data_key_name = redis_platform_address + ":temporary"
+    mymongo_db = connect_mongo()
 
+    #运行程序
     connect_db()
