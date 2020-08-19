@@ -13,6 +13,8 @@ import redis
 from pybloom_live import BloomFilter
 import cchardet
 import configparser
+import pymongo
+from bson.objectid import ObjectId
 
 """
 __init__
@@ -68,6 +70,22 @@ class Main():
         self.url_key_name = self.redis_platform_address+":url:" + self.taskCode
         self.redis = redis.Redis(host=self.redisHost, port=self.redisPort, decode_responses=True, password=self.redisPassword, db=self.redisDb)
 
+        mongoHost = WebConfig.get("mongodb", "host")
+        mongoPort = WebConfig.get("mongodb", "port")
+        mongoUser = WebConfig.get("mongodb", "user")
+        mongoPassword = WebConfig.get("mongodb", "password")
+        mongourl = "mongodb://" + mongoUser + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort
+        conn = pymongo.MongoClient(mongourl)
+        mongoDatabase = WebConfig.get("mongodb", "database")  # mongo数据库名
+        self.myMongo = conn.mongoDatabase  # 数据库名
+
+
+
+
+
+
+
+
         self.bloom = None
 
         self.webType = ""
@@ -102,6 +120,24 @@ class Main():
             self.bloom = BloomFilter.fromfile(bloomFile)
         else:
             self.bloom = BloomFilter(capacity=1000000, error_rate=0.00001)
+
+    def change_redis_status_fail(self):
+        # redis_keyname   状态键值
+        #   dict_key_name   "status"
+        #   newvalue    更新后的outQueue值0
+
+        #   更新redis
+        url_key_name = self.redis_platform_address+":status:"+self.taskCode
+        keyname_data = self.redis.get(url_key_name)  # 获取状态数据
+        keyname_data = json.loads(keyname_data)  # 换为json数据
+        keyname_data["status"] = "6"  # 更新数据，将outQueue更新为0
+        mongo_id = keyname_data["id"]  # 获取id值  获取mongo  id
+
+        keyname_data = json.dumps(keyname_data)  # 转化为字符串
+        self.redis.set(url_key_name, keyname_data)  # 更新redis
+
+        #   更新mongodb
+        self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "6"}})  # 更新数据
 
     def bloom_writeto_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
@@ -193,26 +229,31 @@ class Main():
         else:  # 增量爬虫
             switch = False
             startUrl_urlList = self.get_content_url_list(self.start_url)
-            for startUrl_url in startUrl_urlList:   #判断第一页
-                print(startUrl_url)
-                if startUrl_url in self.bloom:
-                    print(startUrl_url,"去重成功")
-                    switch = True
-                else:
-                    self.bloom.add(startUrl_url)
-            if not switch:  #判断第二页及以后页数
-                for pageIndex in range(self.second_page_value,self.second_page_value):
-                    swtich2 = False
-                    theUrl = self.url_type % pageIndex  #从第二页开始构造链接
-                    second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
-                    for second_content_url in second_content_urlList:
-                        if second_content_url in self.bloom:
-                            swtich2 = True
-                        else:
-                            self.bloom.add(second_content_url)
-                            self.redis.lpush(self.url_key_name, second_content_url)
-                    if swtich2:
-                        break
+
+            if startUrl_urlList:    #是空的话判断为失败
+                for startUrl_url in startUrl_urlList:   #判断第一页
+                    print(startUrl_url)
+                    if startUrl_url in self.bloom:
+                        print(startUrl_url,"去重成功")
+                        switch = True
+                    else:
+                        self.bloom.add(startUrl_url)
+                if not switch:  #判断第二页及以后页数
+                    for pageIndex in range(self.second_page_value,self.second_page_value):
+                        swtich2 = False
+                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
+                        second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
+                        for second_content_url in second_content_urlList:
+                            if second_content_url in self.bloom:
+                                print("------------------------------------布隆过滤器")
+                                swtich2 = True
+                            else:
+                                self.bloom.add(second_content_url)
+                                self.redis.lpush(self.url_key_name, second_content_url)
+                        if swtich2:
+                            break
+            else:   #判断失败
+                self.change_redis_status_fail()
 
     def dongTai(self):
         lineListXpath = ""
