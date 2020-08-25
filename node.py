@@ -135,9 +135,9 @@ class Main():
         xpathData = tempData["xpaths"]
         if "titleXpath" in xpathData:
             self.titleXpath = xpathData["titleXpath"]
-        if "contentXpath" in tempData:
+        if "contentXpath" in xpathData:
             self.contentXpath = xpathData["contentXpath"]
-        if "htmlContentXpath" in tempData:
+        if "htmlContentXpath" in xpathData:
             self.htmlContentXpath = xpathData["htmlContentXpath"]
         if "industrialClassXpath" in xpathData:
             self.industrialClassXpath = xpathData["industrialClassXpath"]
