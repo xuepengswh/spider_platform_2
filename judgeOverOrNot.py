@@ -61,10 +61,10 @@ def change_redis_status(redis_keyname,dict_key_name,newvalue):
         myMongo["task_info"].update_one({"_id":ObjectId(mongo_id)},{"$set":{"status":"5"}}) # 更新数据
         logging.info(ObjectId(mongo_id))
         logging.info("将此数据更改为完成状态")
-    else:   #多次执行，改为未开始
-        myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "1"}})
-        logging.info(ObjectId(mongo_id))
-        logging.info("将此数据更改为未开始状态")
+    # else:   #多次执行，改为未开始
+    #     myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "1"}})
+    #     logging.info(ObjectId(mongo_id))
+    #     logging.info("将此数据更改为未开始状态")
 
 
 
