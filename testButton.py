@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request,jsonify
 import requests
 import lxml.etree
 import selenium
@@ -31,6 +31,7 @@ def get_data(url, data):
                 html_content = lxml.etree.tostring(html_content[0])
                 codeStyle = cchardet.detect(html_content)["encoding"]
                 html_content = html_content.decode(codeStyle, errors="ignore")
+                html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                 endData["htmlContentXpath"] = html_content
                 continue
             else:
@@ -40,6 +41,7 @@ def get_data(url, data):
 
         keystr = mytree.xpath(keyxpath)
         keystr = " ".join(keystr)
+        keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
         endData[key] = keystr
         endData["url"] = url
 
@@ -63,24 +65,62 @@ def get_one_url(lineListXpath, start_url):
         pass
 
 
-@app.route('/test', methods=['POST'])
+
+@app.route('/test_template', methods=['POST'])
 def hello_world():
     data = request.get_data()
     data = data.decode("utf-8")
     data = json.loads(data)
 
-    start_url = data["start_url"]
-    lineListXpath = data["lineListXpath"]
+    templateInfo_data = data["templateInfo"]
+    templateInfo_data = json.loads(templateInfo_data)
+
+    start_url = templateInfo_data["start_url"]
+
+    lineListXpath = templateInfo_data["lineListXpath"]
 
     url = get_one_url(lineListXpath, start_url)
 
-    try:
-        endData = get_data(url,data)
-    except:
-        endData = "error"
+    end_content = get_data(url, templateInfo_data)
+    endData = {
+        "status": "1",
+        "errorDesc": "",
+        "successDesc": end_content
+    }
 
     return endData
+#     try:
+#         data = request.get_data()
+#         data = data.decode("utf-8")
+#         data = json.loads(data)
+#
+#
+#         templateInfo_data = data["templateInfo"]
+#         templateInfo_data = json.loads(templateInfo_data)
+#
+#         start_url = templateInfo_data["start_url"]
+#
+#         lineListXpath = templateInfo_data["lineListXpath"]
+#
+#         url = get_one_url(lineListXpath, start_url)
+#
+#
+#         end_content = get_data(url,templateInfo_data)
+#         endData = {
+#             "status": "1",
+#             "errorDesc": "",
+#             "successDesc": end_content
+#         }
+#
+#         return endData
+#     except Exception as e:
+#         endData = {
+#     "status":"2",
+#     "errorDesc":str(e),
+#     "successDesc":""
+# }
+#         return endData
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8951, debug=True)

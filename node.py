@@ -15,6 +15,13 @@ import logging
 import cchardet
 import hashlib
 import configparser
+import logging
+import pymongo
+from bson.objectid import ObjectId
+logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
+                    level=logging.DEBUG,
+                    filename="spider.log")
+
 
 """
 __init__
@@ -24,6 +31,7 @@ get_proxy(self)
     另开一个线程，没间隔5秒更新一下代理数据
 updata_attr(一般为redis的status数据)
 	根据传入参数更新属性
+	更改状态为进行中
 insert_data(存储数据data)
 	将传入参数存储到redis临时数据库，个别还需要存储到永久数据库，还需要taskCode
 get_url_key_name
@@ -70,8 +78,19 @@ class Main():
         self.redisPassword = WebConfig.get("redis", "password")
         self.redisDb = WebConfig.get("redis", "database")
         self.redis_platform_address = WebConfig.get("redis", "redis_platform_address")
-
         self.redis = redis.Redis(host=self.redisHost, port=self.redisPort, decode_responses=True, password=self.redisPassword, db=self.redisDb)
+
+        mongoHost = WebConfig.get("mongodb", "host")
+        mongoPort = WebConfig.get("mongodb", "port")
+        mongoUser = WebConfig.get("mongodb", "user")
+        mongoPassword = WebConfig.get("mongodb", "password")
+        mongoDatabase = WebConfig.get("mongodb", "database")
+        mongourl = "mongodb://" + mongoUser + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort
+        conn = pymongo.MongoClient(mongourl)
+        self.myMongo = conn[mongoDatabase]  # 数据库名
+
+
+
         self.task_code = None  # 在start 和get_task_status函数中更新
         self.task_status = None
         self.webSite = ""
@@ -114,9 +133,12 @@ class Main():
 
         # 页面元素设置
         xpathData = tempData["xpaths"]
-        self.titleXpath = xpathData["titleXpath"]
-        self.contentXpath = xpathData["contentXpath"]
-        self.htmlContentXpath = xpathData["htmlContentXpath"]
+        if "titleXpath" in xpathData:
+            self.titleXpath = xpathData["titleXpath"]
+        if "contentXpath" in tempData:
+            self.contentXpath = xpathData["contentXpath"]
+        if "htmlContentXpath" in tempData:
+            self.htmlContentXpath = xpathData["htmlContentXpath"]
         if "industrialClassXpath" in xpathData:
             self.industrialClassXpath = xpathData["industrialClassXpath"]
         if "organizationXpath" in xpathData:
@@ -144,7 +166,6 @@ class Main():
         # 设置代理
         self.proxy = self.task_status["useProxy"]
         self.proxy_url = self.task_status["proxyProductValue"]
-        self.proxy_dict = ""
 
         self.timeInterval = self.task_status["timeInterval"]
         self.storeQueue = self.task_status["storeQueue"]
@@ -157,11 +178,16 @@ class Main():
         if "selenium" in tempData:
             self.selenium = tempData["selenium"]
 
+    def change_status_running(self):
+
+        mongo_id = self.task_status["id"]  # 获取id值
+        self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
+        logging.info(ObjectId(mongo_id))
+        logging.info("将此数据更改为进行中状态")
+
     def get_proxy(self):
-        while True:
-            ps = requests.get(self.proxy_url).text
-            self.proxy_dict = json.loads(ps)
-            time.sleep(5)
+        ps = requests.get(self.proxy_url).text
+        return ps
 
     def insert_data(self, data):
         data = json.dumps(data)
@@ -323,10 +349,11 @@ class Main():
     def download(self, url):
         try:
             if self.proxy == "1":  # 使用代理
-                proxy_thread = threading.Thread(target=self.get_proxy)  # 开启代理线程
-                proxy_thread.start()
-                time.sleep(1)  # 获取代理
-                response = requests.get(url, proxies=self.proxy_dict, timeout=self.timeout, headers=self.header)
+                proxy = self.get_proxy().strip()
+                proxies={'https':proxy}  # 获取代理
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
+                logging.info(url)
+                logging.info("以使用代理")
             else:  # 不适用代理
                 response = requests.get(url, timeout=self.timeout, headers=self.header)
             code_style = cchardet.detect(response.content)["encoding"]
@@ -380,6 +407,8 @@ class Main():
                     continue  # 结束，开启下一个循环
 
                 self.updata_attr()  # 更新属性值，获取下载方式及页面xpath
+                self.change_status_running()    #更改状态为进行中
+
                 tasklist = []  # url队列
                 for i in range(self.thread_num):  # 添加线程数个url
                     if self.redis.llen(url_key_name) == 0:  # 如果url队列为空，返回
@@ -390,7 +419,6 @@ class Main():
 
                 if not tasklist:  # 如果线程队列为空，结束，从头开始执行
                     continue
-
                 self.thread_start(tasklist)  # 开启多线程下载
                 time.sleep(int(self.timeInterval))  # 时间间隔
 

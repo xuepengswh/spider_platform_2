@@ -17,6 +17,11 @@ import hashlib
 import pymongo
 from bson.objectid import ObjectId
 import configparser
+import logging
+logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
+                    level=logging.DEBUG,
+                    filename="判断完成状态.log")
+
 
 """
 redis状态轮询
@@ -30,7 +35,7 @@ redis状态轮询
 def connect_mongo():
     mongourl = "mongodb://"+mongoUser+":"+mongoPassword+"@"+mongoHost+":"+mongoPort
     conn = pymongo.MongoClient(mongourl)
-    db = conn.mongoDatabase#数据库名
+    db = conn[mongoDatabase]#数据库名
     return db
 
 def change_redis_status(redis_keyname,dict_key_name,newvalue):
@@ -52,33 +57,40 @@ def change_redis_status(redis_keyname,dict_key_name,newvalue):
 
 
     #   更新mongodb
-    if executionType=="1":  #单次执行，改为完成状态，更改mongodb状态
-        myMongo["task_info"].update_one({"_id":ObjectId(mongo_id)},{"$set":{"status":"5"}}) #更新数据
+    if executionType=="1":  # 单次执行，改为完成状态，更改mongodb状态
+        myMongo["task_info"].update_one({"_id":ObjectId(mongo_id)},{"$set":{"status":"5"}}) # 更新数据
+        logging.info(ObjectId(mongo_id))
+        logging.info("将此数据更改为完成状态")
     else:   #多次执行，改为未开始
         myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "1"}})
+        logging.info(ObjectId(mongo_id))
+        logging.info("将此数据更改为未开始状态")
 
-def change_mongo_status():
-    pass
 
-def connect_db( ):
-    redis_key_list = myredis.keys(redis_platform_address+":status:*")
+
+def connect_db():
     while True:
+        redis_key_list = myredis.keys(redis_platform_address + ":status:*")
         for key_name in redis_key_list:
+            print(key_name)
             task_code = key_name.split(":")[-1]  # 更新self.task_code
 
             keyName = redis_platform_address+":status:" +task_code
             status_data = myredis.get(keyName)  # 获得所有状态
             status_data = json.loads(status_data)
             outQueue  = int(status_data["outQueue"])
-            if outQueue==1:
+            print(outQueue)
+            if outQueue==1: # 在队列内是0
                 url_key_name = redis_platform_address+":url:"+task_code
                 num = myredis.llen(url_key_name)
+                print(num)
                 if num==0:
+                    print("已经判断了一个")
                     #   更改  redis状态和mongodb状态
                     change_redis_status(key_name, "outQueue", 0)
             else:
-                continue
-            time.sleep(3)
+                pass
+            time.sleep(0.2)
 
 if __name__=="__main__":
     #读取配置文件

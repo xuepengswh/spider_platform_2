@@ -15,6 +15,11 @@ import cchardet
 import configparser
 import pymongo
 from bson.objectid import ObjectId
+import logging
+logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
+                    level=logging.DEBUG,
+                    filename="spider.log")
+
 
 """
 __init__
@@ -24,9 +29,6 @@ __del__
 bloom_readfrom_db(self)
 bloom_writeto_db(self)
     布隆过滤器读写操作，设计容量100万
-    self.tempFile_del = open("tempFile", "wb")
-    self.bloomFile = open("tempFile", "rb")
-    为了和__del__兼容，上述两个在__init__中实现
 get_PageUrlList
     构造新闻的页数链接，page_1,page_2...
 get_content_url_list(url)
@@ -77,13 +79,7 @@ class Main():
         mongourl = "mongodb://" + mongoUser + ":" + mongoPassword + "@" + mongoHost + ":" + mongoPort
         conn = pymongo.MongoClient(mongourl)
         mongoDatabase = WebConfig.get("mongodb", "database")  # mongo数据库名
-        self.myMongo = conn.mongoDatabase  # 数据库名
-
-
-
-
-
-
+        self.myMongo = conn[mongoDatabase]  # 数据库名
 
 
         self.bloom = None
@@ -102,11 +98,9 @@ class Main():
         self.contentXpath = ""
 
         self.proxy = None
+        self.proxy_url = None
         self.header = None
         self.timeout = 10
-
-        self.tempFile_del = open("tempFile", "wb")
-        self.bloomFile = open("tempFile_1", "rb")
 
     def bloom_readfrom_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort,  password=self.redisPassword, db=self.redisDb)
@@ -121,39 +115,28 @@ class Main():
         else:
             self.bloom = BloomFilter(capacity=1000000, error_rate=0.00001)
 
-    def change_redis_status_fail(self):
-        # redis_keyname   状态键值
-        #   dict_key_name   "status"
-        #   newvalue    更新后的outQueue值0
-
-        #   更新redis
-        url_key_name = self.redis_platform_address+":status:"+self.taskCode
-        keyname_data = self.redis.get(url_key_name)  # 获取状态数据
-        keyname_data = json.loads(keyname_data)  # 换为json数据
-        keyname_data["status"] = "6"  # 更新数据，将outQueue更新为0
-        mongo_id = keyname_data["id"]  # 获取id值  获取mongo  id
-
-        keyname_data = json.dumps(keyname_data)  # 转化为字符串
-        self.redis.set(url_key_name, keyname_data)  # 更新redis
-
-        #   更新mongodb
-        self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "6"}})  # 更新数据
+    def get_proxy(self):
+        ps = requests.get(self.proxy_url).text
+        return ps
 
     def bloom_writeto_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         bloomDbKeyName = self.redis_platform_address + ":bloom:" + self.taskCode
-        if self.bloom:
-            self.bloom.tofile(self.tempFile_del)
-            self.tempFile_del.close()
+        tempFile_del = open("tempFile", "wb")
 
-            bloomData = self.bloomFile.read()
-            r.set(bloomDbKeyName, bloomData)
-            self.bloomFile.close()
+        self.bloom.tofile(tempFile_del)         #将布隆过滤器数据写入文件
+        tempFile_del.close()
+
+        bloomFile = open("tempFile", "rb")      #打开保存数据的文件
+        bloomData = bloomFile.read()
+        r.set(bloomDbKeyName, bloomData)
+        bloomFile.close()
+        logging.info(bloomDbKeyName)
+        logging.info("布隆过滤器成功保存到数据库")
 
     def get_PageUrlList(self):
         """构造翻页链接"""
         urlList = [self.url_type % i for i in range(self.second_page_value, self.end_page_value)]
-        urlList.append(self.start_url)
         urlList.append(self.start_url)
         return urlList
 
@@ -163,8 +146,12 @@ class Main():
                            'Windows NT 6.1; Win64; x64; Trident/5.0)'),
         }
         try:
-            if self.proxy:
-                response = requests.get(url, proxies=self.proxy, timeout=self.timeout, headers=_headers)
+            if self.proxy == "1":
+                proxy = self.get_proxy().strip()
+                proxies={'https':proxy}  # 获取代理
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=_headers)
+                logging.info(url)
+                logging.info("以使用代理")
             else:
                 response = requests.get(url, timeout=self.timeout, headers=_headers)
 
@@ -179,6 +166,8 @@ class Main():
     def update_attr(self):
         keyName = self.redis_platform_address+":status:" + self.taskCode  # 获取任务状态键值
         status_data = self.redis.get(keyName)  # 获取所有状态数据
+        print("-------------------------",self.taskCode)
+
         taskData = json.loads(status_data)
 
         self.executionTimes = taskData["executionTimes"]
@@ -190,6 +179,8 @@ class Main():
         # 下载 设置
         if "proxy" in taskData:
             self.proxy = taskData["proxy"]
+        if "proxyProductValue" in taskData:
+            self.proxy_url = taskData["proxyProductValue"]
         if "header" in taskData:
             self.header = taskData["header"]
         if "timeout" in taskData:
@@ -221,10 +212,12 @@ class Main():
     def jingTai(self):
         if self.executionTimes == 1:  # 存量爬虫
             pageList = self.get_PageUrlList()  # 页数链接
+
             for url in pageList:
                 urlList = self.get_content_url_list(url)
                 for contentUrl in urlList:
                     self.bloom.add(contentUrl)
+                    print(self.url_key_name)
                     self.redis.lpush(self.url_key_name, contentUrl)
         else:  # 增量爬虫
             switch = False
@@ -232,12 +225,14 @@ class Main():
 
             if startUrl_urlList:    #是空的话判断为失败
                 for startUrl_url in startUrl_urlList:   #判断第一页
-                    print(startUrl_url)
                     if startUrl_url in self.bloom:
-                        print(startUrl_url,"去重成功")
-                        switch = True
+                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(startUrl_url)
+                        self.redis.lpush(self.url_key_name, startUrl_url)
+                        print(startUrl_url)
+                        print(self.url_key_name)
+
                 if not switch:  #判断第二页及以后页数
                     for pageIndex in range(self.second_page_value,self.second_page_value):
                         swtich2 = False
@@ -245,15 +240,26 @@ class Main():
                         second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                         for second_content_url in second_content_urlList:
                             if second_content_url in self.bloom:
-                                print("------------------------------------布隆过滤器")
                                 swtich2 = True
                             else:
                                 self.bloom.add(second_content_url)
                                 self.redis.lpush(self.url_key_name, second_content_url)
+                                print(second_content_url)
                         if swtich2:
                             break
-            else:   #判断失败
-                self.change_redis_status_fail()
+
+        self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+
+    def change_outqueue_num(self):
+        pass
+
+        keyName = self.redis_platform_address + ":status:" + self.taskCode  # 获取任务状态键值
+        status_data = self.redis.get(keyName)  # 获取所有状态数据
+        print("-------------------------", self.taskCode)
+        taskData = json.loads(status_data)
+        taskData["outQueue"] = 1        #更新json数据
+        keyname_data = json.dumps(taskData)  # 转化为字符串
+        self.redis.set(keyName, keyname_data)  # 更新redis
 
     def dongTai(self):
         lineListXpath = ""
@@ -273,13 +279,15 @@ class Main():
     def start(self):
         while True:
             task_key_name = self.redis_platform_address+":task"
-            # tastData = self.redis.lpop(task_key_name)     ###############################################################################################################################################
-            tastData = self.redis.lrange(task_key_name,0,0)[0]
+            tastData = self.redis.lpop(task_key_name)
+            # tastData = self.redis.lrange(task_key_name,0,0)[0]
             if not tastData:    #如果没有任务，暂停10秒在去一次
                 time.sleep(10)
             else:
                 print(self.taskCode)
                 self.taskCode = json.loads(tastData)["taskCode"]    # 更新self.taskCode
+                self.change_outqueue_num()      #更改outQueue值为1
+                print(tastData)
                 self.update_attr()  # 更新属性
                 if self.webType == 0:
                     self.jingTai()
@@ -287,8 +295,6 @@ class Main():
                     self.dongTai()
                 time.sleep(10)
 
-    def __del__(self):
-        self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
 if __name__ == "__main__":
     mytest = Main()
