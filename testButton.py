@@ -45,7 +45,6 @@ def get_data(url, data):
         endData[key] = keystr
         endData["url"] = url
 
-
     return endData
 
 
@@ -62,64 +61,44 @@ def get_one_url(lineListXpath, start_url):
         endUrl = urljoin(url, lineUrl)
         return endUrl
     else:
-        pass
+        return None
 
 
 
 @app.route('/test_template', methods=['POST'])
 def hello_world():
-    data = request.get_data()
-    data = data.decode("utf-8")
-    data = json.loads(data)
+    try:
+        data = request.get_data()
+        data = data.decode("utf-8")
+        data = json.loads(data)
+        templateInfo_data = data
 
-    templateInfo_data = data["templateInfo"]
-    templateInfo_data = json.loads(templateInfo_data)
+        start_url = templateInfo_data["start_url"]
 
-    start_url = templateInfo_data["start_url"]
+        lineListXpath = templateInfo_data["lineListXpath"]
 
-    lineListXpath = templateInfo_data["lineListXpath"]
-
-    url = get_one_url(lineListXpath, start_url)
-
-    end_content = get_data(url, templateInfo_data)
-    endData = {
-        "status": "1",
-        "errorDesc": "",
-        "successDesc": end_content
-    }
-
-    return endData
-#     try:
-#         data = request.get_data()
-#         data = data.decode("utf-8")
-#         data = json.loads(data)
-#
-#
-#         templateInfo_data = data["templateInfo"]
-#         templateInfo_data = json.loads(templateInfo_data)
-#
-#         start_url = templateInfo_data["start_url"]
-#
-#         lineListXpath = templateInfo_data["lineListXpath"]
-#
-#         url = get_one_url(lineListXpath, start_url)
-#
-#
-#         end_content = get_data(url,templateInfo_data)
-#         endData = {
-#             "status": "1",
-#             "errorDesc": "",
-#             "successDesc": end_content
-#         }
-#
-#         return endData
-#     except Exception as e:
-#         endData = {
-#     "status":"2",
-#     "errorDesc":str(e),
-#     "successDesc":""
-# }
-#         return endData
+        url = get_one_url(lineListXpath, start_url)
+        if url:
+            end_content = get_data(url, templateInfo_data)
+            endData = {
+                "status": "1",
+                "errorDesc": "",
+                "successDesc": end_content
+            }
+        else:
+            endData = {
+                "status": "2",
+                "errorDesc": "lineListXpath获取文本链接部分出现错误",
+                "successDesc": ""
+            }
+        return endData
+    except Exception as e:
+        endData = {
+    "status":"2",
+    "errorDesc":str(e),
+    "successDesc":""
+}
+        return endData
 
 
 if __name__ == '__main__':
