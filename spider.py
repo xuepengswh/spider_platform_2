@@ -93,6 +93,7 @@ class Main():
         self.end_page_value = ""
         self.url_type = ""
         self.lineListXpath = ""
+        self.page_xpath = ""    #page页如果有需要提取的数据
         # 获取页面元素
         self.titleXpath = ""
         self.contentXpath = ""
@@ -121,7 +122,6 @@ class Main():
         return ps
 
     def bloom_writeto_db(self):
-        r = redis.Redis(host=self.redisHost, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         bloomDbKeyName = self.redis_platform_address + ":bloom:" + self.taskCode
 
         tempFile_del = open("tempFile", "wb")
@@ -141,7 +141,6 @@ class Main():
         else:
             self.myMongo["bloom"].insert_one(insert_data)
 
-        r.set(bloomDbKeyName, bloomData)
         bloomFile.close()
         logging.info(bloomDbKeyName)
         logging.info("布隆过滤器成功保存到数据库")
@@ -184,9 +183,9 @@ class Main():
 
         self.executionTimes = taskData["executionTimes"]
         self.taskCode = taskData["taskCode"]
-        self.url_key_name = "mt:spider:platform:url:" + self.taskCode
+        self.url_key_name = self.redis_platform_address+":url:" + self.taskCode
 
-        self.bloom_readfrom_db()  #更新布隆过滤器
+
 
         # 下载 设置
         if "proxy" in taskData:
@@ -200,6 +199,7 @@ class Main():
         if "selenium" in taskData:
             self.selenium = taskData["selenium"]
 
+
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
         self.webType = temp_data["webType"]
         # 页面翻页设置
@@ -208,18 +208,48 @@ class Main():
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
         self.lineListXpath = temp_data["lineListXpath"]
+        if "page_xpath" in temp_data:
+            self.page_xpath = temp_data["page_xpath"]
+        else:
+            self.page_xpath = ""
 
     def get_content_url_list(self, url):
-        endUrlList = []
-        response = self.download(url)
-        if response[1] == 200:
-            ps = response[0]
-            mytree = lxml.etree.HTML(ps)
-            lienlist = mytree.xpath(self.lineListXpath)
-            for ii in lienlist:
-                endUrl = urljoin(url, ii)
-                endUrlList.append(endUrl)
-        return endUrlList
+        if not self.page_xpath:
+            endUrlList = []
+            response = self.download(url)
+            if response[1] == 200:
+                ps = response[0]
+                mytree = lxml.etree.HTML(ps)
+                linelist = mytree.xpath(self.lineListXpath)
+                for ii in linelist:
+                    endUrl = urljoin(ii, url)
+                    endUrlList.append(endUrl)
+            return endUrlList
+        else:
+            end_data_list = []
+            response = self.download(url)
+            if response[1] == 200:
+                ps = response[0]
+                mytree = lxml.etree.HTML(ps)
+                linelist = mytree.xpath(self.lineListXpath)
+                for line in linelist:
+                    one_data_dict = {}
+                    for key,keyxpath in self.page_xpath.items():
+                        if key == "url_xpath":
+                            content_url = line.xpath(keyxpath)
+                            if content_url:
+                                endUrl = urljoin(content_url[0], url)
+                                one_data_dict["url"] = endUrl
+                                continue
+                            else:   #没有获取到url
+                                return
+
+                        keystr = mytree.xpath(keyxpath)
+                        keystr = "".join(keystr)
+                        one_data_dict[key] = keystr
+                        one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                        end_data_list.append(one_data_dict)
+            return end_data_list
 
     def jingTai(self):
         if self.executionTimes == 1:  # 存量爬虫
@@ -227,40 +257,41 @@ class Main():
 
             for url in pageList:
                 urlList = self.get_content_url_list(url)
-                for contentUrl in urlList:
-                    self.bloom.add(contentUrl)
+
+                for content_data in urlList:
+                    self.bloom.add(content_data)
                     print(self.url_key_name)
-                    self.redis.lpush(self.url_key_name, contentUrl)
+                    self.redis.lpush(self.url_key_name, content_data)
+
         else:  # 增量爬虫
             switch = False
             startUrl_urlList = self.get_content_url_list(self.start_url)
 
-            if startUrl_urlList:    #是空的话判断为失败
-                for startUrl_url in startUrl_urlList:   #判断第一页
-                    if startUrl_url in self.bloom:
-                        print("成功判断一个布隆过滤器")
-                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
-                    else:
-                        self.bloom.add(startUrl_url)
-                        self.redis.lpush(self.url_key_name, startUrl_url)
-                        print(startUrl_url)
-                        print(self.url_key_name)
+            for startUrl_url in startUrl_urlList:   #判断第一页
+                if startUrl_url in self.bloom:
+                    print("成功判断一个布隆过滤器")
+                    switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                else:
+                    self.bloom.add(startUrl_url)
+                    self.redis.lpush(self.url_key_name, startUrl_url)
+                    print(startUrl_url)
+                    print(self.url_key_name)
 
-                if not switch:  #判断第二页及以后页数
-                    for pageIndex in range(self.second_page_value,self.second_page_value):
-                        swtich2 = False
-                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
-                        second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
-                        for second_content_url in second_content_urlList:
-                            if second_content_url in self.bloom:
-                                print("成功判断一个布隆过滤器")
-                                swtich2 = True
-                            else:
-                                self.bloom.add(second_content_url)
-                                self.redis.lpush(self.url_key_name, second_content_url)
-                                print(second_content_url)
-                        if swtich2:
-                            break
+            if not switch:  #判断第二页及以后页数
+                for pageIndex in range(self.second_page_value,self.second_page_value):
+                    swtich2 = False
+                    theUrl = self.url_type % pageIndex  #从第二页开始构造链接
+                    second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
+                    for second_content_url in second_content_urlList:
+                        if second_content_url in self.bloom:
+                            print("成功判断一个布隆过滤器")
+                            swtich2 = True
+                        else:
+                            self.bloom.add(second_content_url)
+                            self.redis.lpush(self.url_key_name, second_content_url)
+                            print(second_content_url)
+                    if swtich2:
+                        break
 
         self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
@@ -277,6 +308,7 @@ class Main():
         self.redis.set(keyName, keyname_data)  # 更新redis
 
     def dongTai(self):
+        print(123)
         lineListXpath = ""
         url_templace = ""
         for i in range(100000):
@@ -304,6 +336,7 @@ class Main():
                 self.change_outqueue_num()      #更改outQueue值为1
                 print(tastData)
                 self.update_attr()  # 更新属性
+                self.bloom_readfrom_db()  # 更新布隆过滤器
                 if self.webType == 0:
                     self.jingTai()
                 else:
@@ -314,5 +347,3 @@ class Main():
 if __name__ == "__main__":
     mytest = Main()
     mytest.start()
-
-
