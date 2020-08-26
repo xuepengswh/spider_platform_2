@@ -133,6 +133,7 @@ class Main():
 
         # 页面元素设置
         xpathData = tempData["xpaths"]
+        self.xpath_data = xpathData
         if "titleXpath" in xpathData:
             self.titleXpath = xpathData["titleXpath"]
         if "contentXpath" in xpathData:
@@ -210,136 +211,61 @@ class Main():
         status_data = self.redis.get(keyName)  # 获得所有状态
         return status_data
 
-    def get_content(self, url,page_data):
+    def get_content(self, url,page_data):  # page_data如果有的话，是linelist页的数据
         """获取文本内容"""
+
         print(url)
         response = self.download(url)
         if response[1] == 200:
             ps = response[0]
             mytree = lxml.etree.HTML(ps)
 
-            title = mytree.xpath(self.titleXpath)  # title
-            if title:
-                title = title[0]
-                title = title.replace("\r", " ").replace("\n", " ")
-            else:
-                title = ""
+            endData = {}
 
-            hashTitle = hashlib.md5(title.encode())
-            hashTitle = hashTitle.hexdigest().upper()
 
-            plist = mytree.xpath(self.contentXpath)  # content
-            content = " ".join(plist)
-            content = content.replace("\r", " ").replace("\n", " ")
 
-            html_content = mytree.xpath(self.htmlContentXpath)  # html_content
-            if html_content:
-                html_content = lxml.etree.tostring(html_content[0], pretty_print=True, method='html', encoding='utf-8')
-                codeStyle = cchardet.detect(html_content)["encoding"]
-                html_content = html_content.decode(codeStyle, errors="ignore")
-            else:
-                html_content = ""
+            for key, keyxpath in self.xpath_data.items():
 
-            if self.industrialClassXpath:
-                industrialClass = mytree.xpath(self.industrialClassXpath)
-                if industrialClass:
-                    industrialClass = industrialClass[0]
-                else:
-                    industrialClass = ""
-            else:
-                industrialClass = ""
-            if self.organizationXpath:
-                organization = mytree.xpath(self.organizationXpath)
-                if organization:
-                    organization = organization[0]
-                else:
-                    organization = ""
-            else:
-                organization = ""
-            if self.countryNameXpath:
-                countryName = mytree.xpath(self.countryNameXpath)
-                if countryName:
-                    countryName = countryName[0]
-                else:
-                    countryName = ""
-            else:
-                countryName = ""
-            if self.policyIndexNumberXpath:
-                policyIndexNumber = mytree.xpath(self.policyIndexNumberXpath)
-                if policyIndexNumber:
-                    policyIndexNumber = policyIndexNumber[0]
-                else:
-                    policyIndexNumber = ""
-            else:
-                policyIndexNumber = ""
-            if self.issuedNumberXpath:
-                issuedNumber = mytree.xpath(self.issuedNumberXpath)
-                if issuedNumber:
-                    issuedNumber = issuedNumber[0]
-                else:
-                    issuedNumber = ""
-            else:
-                issuedNumber = ""
-            if self.subjectClassXpath:
-                subjectClass = mytree.xpath(self.subjectClassXpath)
-                if subjectClass:
-                    subjectClass = subjectClass[0]
-                else:
-                    subjectClass = ""
-            else:
-                subjectClass = ""
-            if self.statementTimeXpath:
-                statementTime = mytree.xpath(self.statementTimeXpath)
-                if statementTime:
-                    statementTime = statementTime[0]
-                else:
-                    statementTime = ""
-            else:
-                statementTime = ""
-            if self.abstractContentXpath:
-                abstractContent = mytree.xpath(self.abstractContentXpath)
-                if abstractContent:
-                    abstractContent = abstractContent[0]
-                else:
-                    abstractContent = ""
-            else:
-                abstractContent = ""
-            if self.regionProvinceXpath:
-                regionProvince = mytree.xpath(self.regionProvinceXpath)
-                if regionProvince:
-                    regionProvince = regionProvince[0]
-                else:
-                    regionProvince = ""
-            else:
-                regionProvince = ""
-            if self.otherClassXpath:
-                otherClass = mytree.xpath(self.otherClassXpath)
-                if otherClass:
-                    otherClass = otherClass[0]
-                else:
-                    otherClass = ""
-            else:
-                otherClass = ""
+                if type(keyxpath) == int or (not keyxpath.startswith(r"//")):
+                    continue
 
-            endData = {"url": url,
-                       "webSite": self.webSite,
-                       "title": title,
-                       "titleMD5": hashTitle,
-                       "langCode": self.langCode,
-                       "industrialClass": industrialClass,
-                       "organization": organization,
-                       "countryName": countryName,
-                       "policyIndexNumber": policyIndexNumber,
-                       "issuedNumber": issuedNumber,
-                       "subjectClass": subjectClass,
-                       "statementTime": statementTime,
-                       "htmlContent": html_content,
-                       "content": content,
-                       "abstractContent": abstractContent,
-                       "regionProvince": regionProvince,
-                       "otherClass": otherClass,
-                       "taskCode": self.task_code}
+                if key == "htmlContentXpath":  # htmlContentXpath单独处理
+                    html_content = mytree.xpath(keyxpath)  # html_content
 
+                    if html_content:
+                        html_content = lxml.etree.tostring(html_content[0])
+                        codeStyle = cchardet.detect(html_content)["encoding"]
+                        html_content = html_content.decode(codeStyle, errors="ignore")
+                        html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
+                        endData["htmlContentXpath"] = html_content
+                        continue
+                    else:
+                        html_content = ""
+                        endData["htmlContentXpath"] = html_content
+                        continue
+
+                keystr = mytree.xpath(keyxpath)
+
+                print(ps)
+                print(keyxpath)
+                print(keystr)
+
+                keystr = " ".join(keystr)
+                keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
+                key = key.replace("_xpath","")
+
+                if key == "title":
+                    hashTitle = hashlib.md5(keystr.encode())
+                    hashTitle = hashTitle.hexdigest().upper()
+                    endData["titleMD5"] = hashTitle
+
+                endData[key] = keystr
+
+
+            endData["url"] = url
+            endData["webSite"] = self.webSite
+            endData["langCode"] = self.langCode
+            endData["taskCode"] = self.task_code
 
             if page_data:   #判断有没有其他数据
                 for key, value in page_data.items():
@@ -347,6 +273,10 @@ class Main():
                         continue
                     key = key.replace("_xpath","")
                     endData[key] = value
+
+            print("1" * 100)
+            print(endData)
+            time.sleep(10)
 
             self.insert_data(endData)  # 存储数据
         else:  # 状态码不是200
