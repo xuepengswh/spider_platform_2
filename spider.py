@@ -103,11 +103,12 @@ class Main():
         self.timeout = 10
 
     def bloom_readfrom_db(self):
-        r = redis.Redis(host=self.redisHost, port=self.redisPort,  password=self.redisPassword, db=self.redisDb)
-        bloomDbKeyName = self.redis_platform_address+":bloom:"+self.taskCode
         tempFile = open("tempFile", "wb")
-        bloomData = r.get(bloomDbKeyName)
-        if bloomData: #如果有布隆过滤器,读取
+
+        bloom_dict = self.myMongo["bloom"].find_one({"task_code": self.taskCode})
+
+        if bloom_dict: #如果有布隆过滤器,读取
+            bloomData = bloom_dict["bloom_data"]
             tempFile.write(bloomData)
             tempFile.close()
             bloomFile = open("tempFile", "rb")
@@ -122,6 +123,7 @@ class Main():
     def bloom_writeto_db(self):
         r = redis.Redis(host=self.redisHost, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         bloomDbKeyName = self.redis_platform_address + ":bloom:" + self.taskCode
+
         tempFile_del = open("tempFile", "wb")
 
         self.bloom.tofile(tempFile_del)         #将布隆过滤器数据写入文件
@@ -129,6 +131,16 @@ class Main():
 
         bloomFile = open("tempFile", "rb")      #打开保存数据的文件
         bloomData = bloomFile.read()
+
+        insert_data = {"task_code": self.taskCode, "bloom_data": bloomData}
+
+        bloom_dict = self.myMongo["bloom"].find_one({"task_code": self.taskCode})
+
+        if bloom_dict:  #更新布隆过滤器
+            self.myMongo["bloom"].update_one({"task_code": self.taskCode},{"$set": {"bloom_data":bloomData}})
+        else:
+            self.myMongo["bloom"].insert_one(insert_data)
+
         r.set(bloomDbKeyName, bloomData)
         bloomFile.close()
         logging.info(bloomDbKeyName)
@@ -174,7 +186,7 @@ class Main():
         self.taskCode = taskData["taskCode"]
         self.url_key_name = "mt:spider:platform:url:" + self.taskCode
 
-        self.bloom_readfrom_db()
+        self.bloom_readfrom_db()  #更新布隆过滤器
 
         # 下载 设置
         if "proxy" in taskData:
@@ -226,6 +238,7 @@ class Main():
             if startUrl_urlList:    #是空的话判断为失败
                 for startUrl_url in startUrl_urlList:   #判断第一页
                     if startUrl_url in self.bloom:
+                        print("成功判断一个布隆过滤器")
                         switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(startUrl_url)
@@ -240,6 +253,7 @@ class Main():
                         second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                         for second_content_url in second_content_urlList:
                             if second_content_url in self.bloom:
+                                print("成功判断一个布隆过滤器")
                                 swtich2 = True
                             else:
                                 self.bloom.add(second_content_url)
@@ -249,6 +263,7 @@ class Main():
                             break
 
         self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+
 
     def change_outqueue_num(self):
         pass
