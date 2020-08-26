@@ -210,7 +210,7 @@ class Main():
         status_data = self.redis.get(keyName)  # 获得所有状态
         return status_data
 
-    def get_content(self, url):
+    def get_content(self, url,page_data):
         """获取文本内容"""
         print(url)
         response = self.download(url)
@@ -339,10 +339,16 @@ class Main():
                        "regionProvince": regionProvince,
                        "otherClass": otherClass,
                        "taskCode": self.task_code}
+
+
+            if page_data:   #判断有没有其他数据
+                for key, value in page_data.items():
+                    if key == "url_xpath":
+                        continue
+                    key = key.replace("_xpath","")
+                    endData[key] = value
+
             self.insert_data(endData)  # 存储数据
-            return
-
-
         else:  # 状态码不是200
             return
 
@@ -367,8 +373,14 @@ class Main():
     def thread_start(self, urlList):
         threadList = []
         for url in urlList:
-            mythread = threading.Thread(target=self.get_content, args=(url,))
-            threadList.append(mythread)
+            if not url.startswith("{"):    #redis取出数据为单纯的url
+                mythread = threading.Thread(target=self.get_content, args=(url,None))
+                threadList.append(mythread)
+            else:   #redis取出数据为字典
+                url = json.loads(url)#将提取数据转化为json格式
+                content_url = url["url"]
+                mythread = threading.Thread(target=self.get_content, args=(content_url,url))
+                threadList.append(mythread)
         for i in threadList:
             i.start()
         for i in threadList:
