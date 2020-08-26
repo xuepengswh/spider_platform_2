@@ -89,27 +89,10 @@ class Main():
         conn = pymongo.MongoClient(mongourl)
         self.myMongo = conn[mongoDatabase]  # 数据库名
 
-
-
         self.task_code = None  # 在start 和get_task_status函数中更新
         self.task_status = None
         self.webSite = ""
         self.langCode = ""
-
-        # 页面元素初始化
-        self.titleXpath = None
-        self.contentXpath = None
-        self.industrialClassXpath = None
-        self.organizationXpath = None
-        self.countryNameXpath = None
-        self.policyIndexNumberXpath = None
-        self.issuedNumberXpath = None
-        self.subjectClassXpath = None
-        self.statementTimeXpath = None
-        self.htmlContentXpath = None
-        self.abstractContentXpath = None
-        self.regionProvinceXpath = None
-        self.otherClassXpath = None
 
         # 下载 设置初始化
         self.timeInterval = 0  # 时间间隔
@@ -122,6 +105,7 @@ class Main():
         self.storeQueue = "0"  # 只存储到mongodb
         self.timeout = 20  # 下载最长延时
         self.selenium = None  # 是否使用selenium
+        self.xpath_data = ""
 
     def updata_attr(self):
         # self.task_code  在start 和get_task_status函数中更新
@@ -134,32 +118,7 @@ class Main():
         # 页面元素设置
         xpathData = tempData["xpaths"]
         self.xpath_data = xpathData
-        if "titleXpath" in xpathData:
-            self.titleXpath = xpathData["titleXpath"]
-        if "contentXpath" in xpathData:
-            self.contentXpath = xpathData["contentXpath"]
-        if "htmlContentXpath" in xpathData:
-            self.htmlContentXpath = xpathData["htmlContentXpath"]
-        if "industrialClassXpath" in xpathData:
-            self.industrialClassXpath = xpathData["industrialClassXpath"]
-        if "organizationXpath" in xpathData:
-            self.organizationXpath = xpathData["organizationXpath"]
-        if "countryNameXpath" in xpathData:
-            self.countryNameXpath = xpathData["countryNameXpath"]
-        if "policyIndexNumberXpath" in xpathData:
-            self.policyIndexNumberXpath = xpathData["policyIndexNumberXpath"]
-        if "issuedNumberXpath" in xpathData:
-            self.issuedNumberXpath = xpathData["issuedNumberXpath"]
-        if "subjectClassXpath" in xpathData:
-            self.subjectClassXpath = xpathData["subjectClassXpath"]
-        if "statementTimeXpath" in xpathData:
-            self.statementTimeXpath = xpathData["statementTimeXpath"]
-        if "abstractContentXpath" in xpathData:
-            self.abstractContentXpath = xpathData["abstractContentXpath"]
-        if "regionProvinceXpath" in xpathData:
-            self.regionProvinceXpath = xpathData["regionProvinceXpath"]
-        if "otherClassXpath" in xpathData:
-            self.otherClassXpath = xpathData["otherClassXpath"]
+
 
         # 更新下载设置状态
         threadNum = int(self.task_status["threadNum"])  # 线程数量设置，默认是1个线程
