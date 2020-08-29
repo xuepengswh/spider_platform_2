@@ -147,7 +147,7 @@ class Main():
 
     def get_PageUrlList(self):
         """构造翻页链接"""
-        urlList = [self.url_type % i for i in range(self.second_page_value, self.end_page_value)]
+        urlList = [self.url_type % i for i in range(int(self.second_page_value), int(self.end_page_value))]
         urlList.append(self.start_url)
         return urlList
 
@@ -172,7 +172,7 @@ class Main():
             return (webData, statusCode)
         except Exception as e:
             print(e)
-            return (0, 0)
+            return (0,0)
 
     def update_attr(self):
         keyName = self.redis_platform_address+":status:" + self.taskCode  # 获取任务状态键值
@@ -222,7 +222,7 @@ class Main():
                 mytree = lxml.etree.HTML(ps)
                 linelist = mytree.xpath(self.lineListXpath)
                 for ii in linelist:
-                    endUrl = urljoin(ii, url)
+                    endUrl = urljoin(url, ii)
                     endUrlList.append(endUrl)
             return endUrlList
         else:
@@ -238,13 +238,13 @@ class Main():
                         if key == "url_xpath":
                             content_url = line.xpath(keyxpath)
                             if content_url:
-                                endUrl = urljoin(content_url[0], url)
+                                endUrl = urljoin(url, content_url[0])
                                 one_data_dict["url"] = endUrl
                                 continue
                             else:   #没有获取到url
                                 return
 
-                        keystr = mytree.xpath(keyxpath)
+                        keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
                         one_data_dict[key] = keystr
                         one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
@@ -266,10 +266,10 @@ class Main():
         else:  # 增量爬虫
             switch = False
             startUrl_urlList = self.get_content_url_list(self.start_url)
+            print(startUrl_urlList)
 
             for startUrl_url in startUrl_urlList:   #判断第一页
                 if startUrl_url in self.bloom:
-                    print("成功判断一个布隆过滤器")
                     switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                 else:
                     self.bloom.add(startUrl_url)
@@ -278,13 +278,12 @@ class Main():
                     print(self.url_key_name)
 
             if not switch:  #判断第二页及以后页数
-                for pageIndex in range(self.second_page_value,self.second_page_value):
+                for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
                     swtich2 = False
                     theUrl = self.url_type % pageIndex  #从第二页开始构造链接
                     second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                     for second_content_url in second_content_urlList:
                         if second_content_url in self.bloom:
-                            print("成功判断一个布隆过滤器")
                             swtich2 = True
                         else:
                             self.bloom.add(second_content_url)
@@ -297,7 +296,6 @@ class Main():
 
 
     def change_outqueue_num(self):
-        pass
 
         keyName = self.redis_platform_address + ":status:" + self.taskCode  # 获取任务状态键值
         status_data = self.redis.get(keyName)  # 获取所有状态数据
@@ -308,7 +306,6 @@ class Main():
         self.redis.set(keyName, keyname_data)  # 更新redis
 
     def dongTai(self):
-        print(123)
         lineListXpath = ""
         url_templace = ""
         for i in range(100000):

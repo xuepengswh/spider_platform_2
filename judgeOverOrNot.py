@@ -58,6 +58,7 @@ def change_redis_status(redis_keyname,dict_key_name,newvalue):
 
     #   更新mongodb
     if executionType=="1":  # 单次执行，改为完成状态，更改mongodb状态
+        time.sleep(5)   # 延时5秒
         myMongo["task_info"].update_one({"_id":ObjectId(mongo_id)},{"$set":{"status":"5"}}) # 更新数据
         logging.info(ObjectId(mongo_id))
         logging.info("将此数据更改为完成状态")
@@ -77,20 +78,19 @@ def connect_db():
 
             keyName = redis_platform_address+":status:" +task_code
             status_data = myredis.get(keyName)  # 获得所有状态
-            status_data = json.loads(status_data)
-            outQueue  = int(status_data["outQueue"])
-            print(outQueue)
-            if outQueue==1: # 在队列内是0
-                url_key_name = redis_platform_address+":url:"+task_code
-                num = myredis.llen(url_key_name)
-                print(num)
-                if num==0:
-                    print("已经判断了一个")
-                    #   更改  redis状态和mongodb状态
-                    change_redis_status(key_name, "outQueue", 0)
-            else:
-                pass
-            time.sleep(0.2)
+            if status_data:     #判断status_data是否为空
+                status_data = json.loads(status_data)
+                outQueue  = int(status_data["outQueue"])
+                if outQueue==1: # 在队列内是0
+                    url_key_name = redis_platform_address+":url:"+task_code
+                    num = myredis.llen(url_key_name)
+                    if num==0:
+                        print("已经判断了一个")
+                        #   更改  redis状态和mongodb状态
+                        change_redis_status(key_name, "outQueue", 0)
+                else:
+                    pass
+                time.sleep(1)
 
 if __name__=="__main__":
     #读取配置文件
@@ -112,6 +112,5 @@ if __name__=="__main__":
     myMongo = connect_mongo()  # 链接mongodbdb数据库
     myredis = redis.Redis(host=redisHost, port=redisPort, decode_responses=True, password=redisPassword, db=redisDb)
 
-    # key_name = redis_platform_address+":status:e7550030"
-    # change_redis_status(key_name,"outQueue",0)
+
     connect_db()

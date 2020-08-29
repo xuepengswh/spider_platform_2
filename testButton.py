@@ -8,13 +8,17 @@ import json
 from urllib.parse import urljoin
 import cchardet
 
+
 app = Flask(__name__)
 
 def get_data(url, data):
     # 提取xpath
     tempData = data["xpaths"]
 
-    ps = requests.get(url).content
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+    }
+    ps = requests.get(url,headers=headers).content
     codeStyle = cchardet.detect(ps)["encoding"]
     ps = ps.decode(codeStyle)
     mytree = lxml.etree.HTML(ps)
@@ -24,7 +28,7 @@ def get_data(url, data):
         if type(keyxpath)==int or  (not keyxpath.startswith(r"//")):
             continue
 
-        if key == "htmlContentXpath": #htmlContentXpath单独处理
+        if key == "html_content_xpath": #htmlContentXpath单独处理
             html_content = mytree.xpath(keyxpath)  # html_content
 
             if html_content:
@@ -32,11 +36,11 @@ def get_data(url, data):
                 codeStyle = cchardet.detect(html_content)["encoding"]
                 html_content = html_content.decode(codeStyle, errors="ignore")
                 html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
-                endData["htmlContentXpath"] = html_content
+                endData["html_content_xpath"] = html_content
                 continue
             else:
                 html_content = ""
-                endData["htmlContentXpath"] = html_content
+                endData["html_content_xpath"] = html_content
                 continue
 
         keystr = mytree.xpath(keyxpath)
@@ -48,20 +52,36 @@ def get_data(url, data):
     return endData
 
 
-def get_one_url(lineListXpath, start_url):
-    url = start_url
 
-    response = requests.get(url)
+def get_one_url(lineListXpath, start_url,url_xpath):    #获取一个文本链接
+
+    url = start_url
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+    }
+    response = requests.get(url,headers=headers)
     ps = response.content.decode("utf-8")
     mytree = lxml.etree.HTML(ps)
 
-    lienlist = mytree.xpath(lineListXpath)
-    if lienlist:
-        lineUrl = lienlist[0]
-        endUrl = urljoin(url, lineUrl)
-        return endUrl
+    if not url_xpath:
+        lienlist = mytree.xpath(lineListXpath)
+        print(lienlist)
+        if lienlist:
+            line_url = lienlist[0]
+            print(url)
+            print(line_url)
+            endUrl = urljoin(url, line_url)
+            print(endUrl)
+            return endUrl
+        else:
+            return None
     else:
-        return None
+        lienlist = mytree.xpath(lineListXpath)
+
+        line_data = lienlist[0]
+        line_url = line_data.xpath(url_xpath)
+        end_url = urljoin(url, line_url[0])
+        return end_url
 
 
 
@@ -77,7 +97,14 @@ def hello_world():
 
         lineListXpath = templateInfo_data["lineListXpath"]
 
-        url = get_one_url(lineListXpath, start_url)
+        if "page_xpath" in templateInfo_data:
+            url_xpath = templateInfo_data["page_xpath"]["url_xpath"]  # linelist页有需要提起的其他数据
+        else:
+            url_xpath = False
+
+        print(lineListXpath)
+
+        url = get_one_url(lineListXpath, start_url, url_xpath)
         if url:
             end_content = get_data(url, templateInfo_data)
             endData = {

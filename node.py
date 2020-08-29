@@ -139,7 +139,6 @@ class Main():
             self.selenium = tempData["selenium"]
 
     def change_status_running(self):
-
         mongo_id = self.task_status["id"]  # 获取id值
         self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
         logging.info(ObjectId(mongo_id))
@@ -181,14 +180,12 @@ class Main():
 
             endData = {}
 
-
-
             for key, keyxpath in self.xpath_data.items():
 
                 if type(keyxpath) == int or (not keyxpath.startswith(r"//")):
                     continue
 
-                if key == "htmlContentXpath":  # htmlContentXpath单独处理
+                if key == "html_content_xpath":  # htmlContentXpath单独处理
                     html_content = mytree.xpath(keyxpath)  # html_content
 
                     if html_content:
@@ -196,18 +193,14 @@ class Main():
                         codeStyle = cchardet.detect(html_content)["encoding"]
                         html_content = html_content.decode(codeStyle, errors="ignore")
                         html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
-                        endData["htmlContentXpath"] = html_content
+                        endData["html_content"] = html_content
                         continue
                     else:
                         html_content = ""
-                        endData["htmlContentXpath"] = html_content
+                        endData["html_content"] = html_content
                         continue
 
                 keystr = mytree.xpath(keyxpath)
-
-                print(ps)
-                print(keyxpath)
-                print(keystr)
 
                 keystr = " ".join(keystr)
                 keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
@@ -307,7 +300,7 @@ class Main():
                     time.sleep(3)  # 暂停3秒
                     continue  # 结束，开启下一个循环
 
-                self.updata_attr()  # 更新属性值，获取下载方式及页面xpath
+                self.updata_attr()  # 更新属性值，获取下载方式
                 self.change_status_running()    #更改状态为进行中
 
                 tasklist = []  # url队列
