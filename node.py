@@ -172,7 +172,6 @@ class Main():
     def get_content(self, url,page_data):  # page_data如果有的话，是linelist页的数据
         """获取文本内容"""
 
-        print(url)
         response = self.download(url)
         if response[1] == 200:
             ps = response[0]
@@ -189,10 +188,9 @@ class Main():
                     html_content = mytree.xpath(keyxpath)  # html_content
 
                     if html_content:
-                        html_content = lxml.etree.tostring(html_content[0])
+                        html_content = lxml.etree.tostring(html_content[0],encoding="utf-8", pretty_print=True, method="html")
                         codeStyle = cchardet.detect(html_content)["encoding"]
                         html_content = html_content.decode(codeStyle, errors="ignore")
-                        html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                         endData["html_content"] = html_content
                         continue
                     else:
