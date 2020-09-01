@@ -17,6 +17,7 @@ import hashlib
 import configparser
 import logging
 import pymongo
+import uuid
 from bson.objectid import ObjectId
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
@@ -93,6 +94,7 @@ class Main():
         self.task_status = None
         self.webSite = ""
         self.langCode = ""
+        self.store_key_name = ""    # 存储字段名字
 
         # 下载 设置初始化
         self.timeInterval = 0  # 时间间隔
@@ -138,6 +140,12 @@ class Main():
         if "selenium" in tempData:
             self.selenium = tempData["selenium"]
 
+        # 数据库存储字段名字
+        if "store_key_name" in tempData:
+            self.store_key_name = tempData["store_key_name"]
+        else:
+            self.store_key_name = ""
+
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
         self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
@@ -149,14 +157,28 @@ class Main():
         return ps
 
     def insert_data(self, data):
-        data = json.dumps(data)
-        print(data)
+        tempData = json.loads(self.task_status["templateInfo"])
+        data_id = data["_id"]
+
+        for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
+            data[key] = value
+
+
         if self.storeQueue == "1":  # 存储到redis和mongodb
-            consStore_url_key_name = self.redis_platform_address+":constant:" + self.task_code  # 永久的redis存储
-            self.redis.lpush(consStore_url_key_name, data)
-            pass
-        tempStore_url_key_name = self.redis_platform_address+":temporary"  # 暂时的存储
-        self.redis.lpush(tempStore_url_key_name, data)
+            if self.langCode == "zh":   #中文存储队列
+                consStore_url_key_name = self.redis_platform_address+":constant:summary:" + self.task_code  # 永久的redis存储
+                self.redis.lpush(consStore_url_key_name, data_id)
+                consStore_url_key_name = self.redis_platform_address+":constant:tag:" + self.task_code  # 永久的redis存储
+                self.redis.lpush(consStore_url_key_name, data_id)
+                self.myMongo[self.task_code].insert(data)
+            else:   #英文存储队列
+                consStore_url_key_name = self.redis_platform_address + ":constant:trans:" + self.task_code  # 永久的redis存储
+                self.redis.lpush(consStore_url_key_name, data_id)
+                self.myMongo[self.task_code].insert(data)
+
+        # tempStore_url_key_name = self.redis_platform_address+":temporary"  # 暂时的存储
+        # self.redis.lpush(tempStore_url_key_name, data)
+
 
     def get_url_key_name(self):
         url_key_find = self.redis_platform_address+":url:*"
@@ -169,7 +191,7 @@ class Main():
         status_data = self.redis.get(keyName)  # 获得所有状态
         return status_data
 
-    def get_content(self, url,page_data):  # page_data如果有的话，是linelist页的数据
+    def get_content(self, url, page_data):  # page_data如果有的话，是linelist页的数据
         """获取文本内容"""
 
         response = self.download(url)
@@ -212,10 +234,11 @@ class Main():
                 endData[key] = keystr
 
 
+            endData["_id"] = str(uuid.uuid4())
             endData["url"] = url
-            endData["webSite"] = self.webSite
-            endData["langCode"] = self.langCode
-            endData["taskCode"] = self.task_code
+            endData["web_site"] = self.webSite
+            endData["language_type"] = self.langCode
+            endData["task_code"] = self.task_code
 
             if page_data:   #判断有没有其他数据
                 for key, value in page_data.items():
