@@ -207,18 +207,16 @@ class Main():
                     continue
 
                 if key == "html_content_xpath":  # htmlContentXpath单独处理
-                    html_content = mytree.xpath(keyxpath)  # html_content
-
-                    if html_content:
-                        html_content = lxml.etree.tostring(html_content[0],encoding="utf-8", pretty_print=True, method="html")
+                    total_html_content = mytree.xpath(keyxpath)  # html_content
+                    endcontent = ""
+                    for one_content in total_html_content:
+                        html_content = lxml.etree.tostring(one_content, encoding="utf-8", pretty_print=True,
+                                                           method="html")
                         codeStyle = cchardet.detect(html_content)["encoding"]
                         html_content = html_content.decode(codeStyle, errors="ignore")
-                        endData["html_content"] = html_content
-                        continue
-                    else:
-                        html_content = ""
-                        endData["html_content"] = html_content
-                        continue
+                        endcontent += html_content
+
+                    endData["html_content"] = endcontent
 
                 keystr = mytree.xpath(keyxpath)
 
