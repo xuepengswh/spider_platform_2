@@ -100,7 +100,10 @@ class Main():
 
         self.proxy = None
         self.proxy_url = None
-        self.header = None
+        self.header = {
+            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
+                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
+        }  # header
         self.timeout = 10
 
     def bloom_readfrom_db(self):
@@ -152,19 +155,16 @@ class Main():
         return urlList
 
     def download(self, url):
-        _headers = {
-            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
-                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
-        }
+
         try:
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=_headers)
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                response = requests.get(url, timeout=self.timeout, headers=_headers)
+                response = requests.get(url, timeout=self.timeout, headers=self.header)
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
@@ -177,7 +177,7 @@ class Main():
     def update_attr(self):
         keyName = self.redis_platform_address+":status:" + self.taskCode  # 获取任务状态键值
         status_data = self.redis.get(keyName)  # 获取所有状态数据
-        print("-------------------------",self.taskCode)
+        print("-------------------------", self.taskCode)
 
         taskData = json.loads(status_data)
 
@@ -201,13 +201,13 @@ class Main():
 
 
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
-        self.webType = temp_data["webType"]
+        self.webType = temp_data["web_type"]
         # 页面翻页设置
         self.start_url = temp_data["start_url"]
         self.second_page_value = int(temp_data["second_page_value"])
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
-        self.lineListXpath = temp_data["lineListXpath"]
+        self.lineListXpath = temp_data["line_list_xpath"]
         if "page_xpath" in temp_data:
             self.page_xpath = temp_data["page_xpath"]
         else:
@@ -239,7 +239,7 @@ class Main():
                             content_url = line.xpath(keyxpath)
                             if content_url:
                                 endUrl = urljoin(url, content_url[0])
-                                one_data_dict["url"] = endUrl
+                                one_data_dict["url"] = endUrl[::]
                                 continue
                             else:   #没有获取到url
                                 return
@@ -247,8 +247,8 @@ class Main():
                         keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
                         one_data_dict[key] = keystr
-                        one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
-                        end_data_list.append(one_data_dict)
+                    one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                    end_data_list.append(one_data_dict)
             return end_data_list
 
     def jingTai(self):
@@ -306,7 +306,7 @@ class Main():
         self.redis.set(keyName, keyname_data)  # 更新redis
 
     def dongTai(self):
-        lineListXpath = ""
+        line_list_xpath = ""
         url_templace = ""
         for i in range(100000):
             url = url_templace % i
@@ -314,10 +314,10 @@ class Main():
             if response[1] == 200:
                 ps = response[0]
                 myjson = json.loads(ps)
-                lineList = jsonpath.jsonpath(myjson, lineListXpath)
+                lineList = jsonpath.jsonpath(myjson, line_list_xpath)
                 if len(lineList) < 1:
                     break
-                for lineurl in lineListXpath:
+                for lineurl in line_list_xpath:
                     contentUrl = urljoin(url, lineurl)
 
     def start(self):
