@@ -247,53 +247,132 @@ class Main():
                         keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
                         one_data_dict[key] = keystr
+                    # one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                    end_data_list.append(one_data_dict)
+            return end_data_list
+
+
+    def get_dongtai_content_url_list(self, url):
+        if not self.page_xpath:
+            endUrlList = []
+            response = self.download(url)
+            if response[1] == 200:
+                ps = response[0]
+                myjson = json.loads(ps)
+                linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
+                for ii in linelist:
+                    endUrl = urljoin(url, ii)
+                    endUrlList.append(endUrl)
+            return endUrlList
+        else:
+            end_data_list = []
+            response = self.download(url)
+            if response[1] == 200:
+                ps = response[0]
+                myjson = json.loads(ps)
+                linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
+                for line in linelist:
+                    one_data_dict = {}
+                    for key,keyxpath in self.page_xpath.items():
+                        if key == "url_xpath" or key=="url":
+                            content_url = jsonpath.jsonpath(line,keyxpath)
+                            if content_url:
+                                endUrl = urljoin(url, content_url[0])
+                                one_data_dict["url"] = endUrl[::]
+                                continue
+                            else:   #没有获取到url
+                                return
+
+                        keystr = jsonpath.jsonpath(line,keyxpath)
+                        if keystr:
+                            keystr = keystr[0]
+                        else:
+                            keystr = ""
+                        one_data_dict[key] = keystr
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
+
 
     def jingTai(self):
         if self.executionTimes == 1:  # 存量爬虫
             pageList = self.get_PageUrlList()  # 页数链接
 
             for url in pageList:
-                urlList = self.get_content_url_list(url)
+                if self.webType == 0:
+                    urlList = self.get_content_url_list(url)
+                else:
+                    urlList = self.get_dongtai_content_url_list(url)
 
                 for content_data in urlList:
-                    self.bloom.add(content_data)
                     print(self.url_key_name)
                     self.redis.lpush(self.url_key_name, content_data)
 
         else:  # 增量爬虫
             switch = False
-            startUrl_urlList = self.get_content_url_list(self.start_url)
-            print(startUrl_urlList)
+            if self.webType == 0:
+                start_data_urlList = self.get_content_url_list(self.start_url)
+            else:
+                start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
+            print(start_data_urlList)
 
-            for startUrl_url in startUrl_urlList:   #判断第一页
-                if startUrl_url in self.bloom:
-                    switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
-                else:
-                    self.bloom.add(startUrl_url)
-                    self.redis.lpush(self.url_key_name, startUrl_url)
-                    print(startUrl_url)
-                    print(self.url_key_name)
+            if not self.page_xpath:
+                for start_data in start_data_urlList:   #判断第一页
+                    if start_data in self.bloom:
+                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                    else:
+                        self.bloom.add(start_data)
+                        self.redis.lpush(self.url_key_name, start_data)
+                        print(start_data)
+                        print(self.url_key_name)
 
-            if not switch:  #判断第二页及以后页数
-                for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
-                    swtich2 = False
-                    theUrl = self.url_type % pageIndex  #从第二页开始构造链接
-                    second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
-                    for second_content_url in second_content_urlList:
-                        if second_content_url in self.bloom:
-                            swtich2 = True
+                if not switch:  #判断第二页及以后页数
+                    for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
+                        swtich2 = False
+                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
+                        if self.webType==0:
+                            second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                         else:
-                            self.bloom.add(second_content_url)
-                            self.redis.lpush(self.url_key_name, second_content_url)
-                            print(second_content_url)
-                    if swtich2:
-                        break
+                            second_content_urlList = self.get_dongtai_content_url_list(theUrl)
+                        for second_content_url in second_content_urlList:
+                            if second_content_url in self.bloom:
+                                swtich2 = True
+                            else:
+                                self.bloom.add(second_content_url)
+                                self.redis.lpush(self.url_key_name, second_content_url)
+                                print(second_content_url)
+                        if swtich2:
+                            break
+            else:
+                for start_data in start_data_urlList:  # 判断第一页
+                    start_data_json = json.loads(start_data)
+                    current_url = start_data_json["url"]
+                    if current_url in self.bloom:
+                        switch = True  # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                    else:
+                        self.bloom.add(current_url)
+                        self.redis.lpush(self.url_key_name, start_data)
+                        print(start_data)
+                        print(self.url_key_name)
 
-        self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+                if not switch:  # 判断第二页及以后页数
+                    for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
+                        swtich2 = False
+                        theUrl = self.url_type % pageIndex  # 从第二页开始构造链接
+                        second_content_urlList = self.get_content_url_list(theUrl)  # 每一页的文本链接列表
+                        for second_content_data in second_content_urlList:
+                            second_content_data_json = json.loads(second_content_data)
+                            current_url = second_content_data_json["url"]
+                            if current_url in self.bloom:
+                                swtich2 = True
+                            else:
+                                self.bloom.add(current_url)
+                                self.redis.lpush(self.url_key_name, second_content_data)
+                                print(second_content_data)
+                        if swtich2:
+                            break
 
+            self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
     def change_outqueue_num(self):
 
@@ -306,25 +385,92 @@ class Main():
         self.redis.set(keyName, keyname_data)  # 更新redis
 
     def dongTai(self):
-        line_list_xpath = ""
-        url_templace = ""
-        for i in range(100000):
-            url = url_templace % i
-            response = self.download(url)
-            if response[1] == 200:
-                ps = response[0]
-                myjson = json.loads(ps)
-                lineList = jsonpath.jsonpath(myjson, line_list_xpath)
-                if len(lineList) < 1:
-                    break
-                for lineurl in line_list_xpath:
-                    contentUrl = urljoin(url, lineurl)
+        if self.executionTimes == 1:  # 存量爬虫
+            pageList = self.get_PageUrlList()  # 页数链接
+
+            for url in pageList:
+                urlList = self.get_dongtai_content_url_list(url)
+
+                for content_data in urlList:
+                    print(self.url_key_name)
+                    self.redis.lpush(self.url_key_name, content_data)
+
+        else:  # 增量爬虫
+            switch = False
+            start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
+            print(start_data_urlList)
+
+            if not self.page_xpath:
+                for start_data in start_data_urlList:   #判断第一页
+                    if start_data in self.bloom:
+                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                    else:
+                        self.bloom.add(start_data)
+                        self.redis.lpush(self.url_key_name, start_data)
+                        print(start_data)
+                        print(self.url_key_name)
+
+                if not switch:  #判断第二页及以后页数
+                    for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
+                        swtich2 = False
+                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
+                        second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
+                        for second_content_url in second_content_urlList:
+                            if second_content_url in self.bloom:
+                                swtich2 = True
+                            else:
+                                self.bloom.add(second_content_url)
+                                self.redis.lpush(self.url_key_name, second_content_url)
+                                print(second_content_url)
+                        if swtich2:
+                            break
+            else:
+                for start_data in start_data_urlList:  # 判断第一页
+                    if start_data["url"] in self.bloom:
+                        switch = True  # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                    else:
+                        self.bloom.add(start_data)
+                        start_data = json.dumps(start_data)
+                        self.redis.lpush(self.url_key_name, start_data)
+                        print(start_data)
+                        print(self.url_key_name)
+
+                if not switch:  # 判断第二页及以后页数
+                    for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
+                        swtich2 = False
+                        theUrl = self.url_type % pageIndex  # 从第二页开始构造链接
+                        second_content_urlList = self.get_content_url_list(theUrl)  # 每一页的文本链接列表
+                        for second_content_data in second_content_urlList:
+                            if second_content_data["url"] in self.bloom:
+                                swtich2 = True
+                            else:
+                                self.bloom.add(second_content_data["url"])
+                                second_content_data = json.dumps(second_content_data)
+                                self.redis.lpush(self.url_key_name, second_content_data)
+                                print(second_content_data)
+                        if swtich2:
+                            break
+
+            self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+        # line_list_xpath = ""
+        # url_templace = ""
+        # for i in range(100000):
+        #     url = url_templace % i
+        #     response = self.download(url)
+        #     if response[1] == 200:
+        #         ps = response[0]
+        #         myjson = json.loads(ps)
+        #         lineList = jsonpath.jsonpath(myjson, line_list_xpath)
+        #         if len(lineList) < 1:
+        #             break
+        #         for lineurl in line_list_xpath:
+        #             contentUrl = urljoin(url, lineurl)
 
     def start(self):
         while True:
             task_key_name = self.redis_platform_address+":task"
             tastData = self.redis.lpop(task_key_name)
-            # tastData = self.redis.lrange(task_key_name,0,0)[0]
+
             if not tastData:    #如果没有任务，暂停10秒在去一次
                 time.sleep(10)
             else:
@@ -333,12 +479,10 @@ class Main():
                 self.change_outqueue_num()      #更改outQueue值为1
                 print(tastData)
                 self.update_attr()  # 更新属性
-                self.bloom_readfrom_db()  # 更新布隆过滤器
-                if self.webType == 0:
-                    self.jingTai()
-                else:
-                    self.dongTai()
-                time.sleep(10)
+                if self.executionTimes != 1:    #增加爬虫
+                    self.bloom_readfrom_db()  # 更新布隆过滤器
+                self.jingTai()
+                time.sleep(1)
 
 
 if __name__ == "__main__":
