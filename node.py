@@ -1,7 +1,7 @@
 from flask import Flask, request
 import requests
 import lxml.etree
-import selenium.webdriver
+from selenium import webdriver
 from bs4 import BeautifulSoup
 import re
 import json
@@ -107,6 +107,7 @@ class Main():
         self.storeQueue = "0"  # 只存储到mongodb
         self.timeout = 20  # 下载最长延时
         self.selenium = None  # 是否使用selenium
+        self.driver = None
         self.xpath_data = ""
 
     def updata_attr(self):
@@ -139,7 +140,9 @@ class Main():
             self.timeout = tempData["timeout"]
         if "selenium" in tempData:
             self.selenium = tempData["selenium"]
-
+            opt = webdriver.ChromeOptions()
+            opt.set_headless()
+            self.driver = webdriver.Chrome(options=opt)
         # 数据库存储字段名字
         if "store_key_name" in tempData:
             self.store_key_name = tempData["store_key_name"]
@@ -159,9 +162,9 @@ class Main():
     def insert_data(self, data):
         tempData = json.loads(self.task_status["templateInfo"])
         data_id = data["_id"]
-
-        for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
-            data[key] = value
+        if "constant_filed" in tempData:
+            for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
+                data[key] = value
 
 
         if self.storeQueue == "1":  # 存储到redis和mongodb
@@ -170,11 +173,11 @@ class Main():
                 self.redis.lpush(consStore_url_key_name, data_id)
                 consStore_url_key_name = self.redis_platform_address+":constant:tag:" + self.task_code  # 永久的redis存储
                 self.redis.lpush(consStore_url_key_name, data_id)
-                self.myMongo[self.task_code].insert(data)
+                self.myMongo[self.task_code].insert_one(data)
             else:   #英文存储队列
                 consStore_url_key_name = self.redis_platform_address + ":constant:trans:" + self.task_code  # 永久的redis存储
                 self.redis.lpush(consStore_url_key_name, data_id)
-                self.myMongo[self.task_code].insert(data)
+                self.myMongo[self.task_code].insert_one(data)
 
         # tempStore_url_key_name = self.redis_platform_address+":temporary"  # 暂时的存储
         # self.redis.lpush(tempStore_url_key_name, data)
@@ -193,8 +196,10 @@ class Main():
 
     def get_content(self, url, page_data):  # page_data如果有的话，是linelist页的数据
         """获取文本内容"""
-
-        response = self.download(url)
+        if self.selenium:
+            response = self.selenium_download(url)
+        else:
+            response = self.download(url)
         if response[1] == 200:
             ps = response[0]
             mytree = lxml.etree.HTML(ps)
@@ -217,11 +222,12 @@ class Main():
                         endcontent += html_content
 
                     endData["html_content"] = endcontent
-
+                    continue
                 keystr = mytree.xpath(keyxpath)
 
                 keystr = " ".join(keystr)
                 keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
+                keystr = keystr.strip()
                 key = key.replace("_xpath","")
 
                 if key == "title":
@@ -270,6 +276,12 @@ class Main():
         except Exception as e:
             print(e)
             return (0, 0)
+
+    def selenium_download(self, url):
+        self.driver.get(url)
+        ps =self.driver.page_source
+        self.driver.quit()
+        return (ps,200)
 
     def thread_start(self, urlList):
         threadList = []
@@ -333,6 +345,7 @@ class Main():
                 if not tasklist:  # 如果线程队列为空，结束，从头开始执行
                     continue
                 self.thread_start(tasklist)  # 开启多线程下载
+
                 time.sleep(int(self.timeInterval))  # 时间间隔
 
 
