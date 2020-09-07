@@ -7,7 +7,7 @@ import re
 import json
 from urllib.parse import urljoin
 import cchardet
-
+import jsonpath
 
 app = Flask(__name__)
 
@@ -52,9 +52,7 @@ def get_data(url, data):
     return endData
 
 
-
-def get_one_url(line_list_xpath, start_url,url_xpath):    #获取一个文本链接
-
+def get_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个文本链接
     url = start_url
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
@@ -63,7 +61,7 @@ def get_one_url(line_list_xpath, start_url,url_xpath):    #获取一个文本链
     ps = response.content.decode("utf-8")
     mytree = lxml.etree.HTML(ps)
 
-    if url_xpath:
+    if url_xpath:   #链接页不只是提取链接
         lienlist = mytree.xpath(line_list_xpath)
         print(len(lienlist))
         line_data = lienlist[0]
@@ -82,6 +80,32 @@ def get_one_url(line_list_xpath, start_url,url_xpath):    #获取一个文本链
         else:
             return None
 
+def get_dongtai_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个文本链接
+    url = start_url
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+    }
+    response = requests.get(url,headers=headers)
+    ps = response.content.decode("utf-8")
+    myjson = json.loads(ps)
+
+    if url_xpath:   #链接页不只是提取链接
+        # lienlist = mytree.xpath(line_list_xpath)
+        line_list = jsonpath.jsonpath(myjson,line_list_xpath)
+        line_data = line_list[0]
+        # line_url = line_data.xpath(url_xpath)
+        line_url = jsonpath.jsonpath(line_data,url_xpath)
+        end_url = urljoin(url, line_url[0])
+        return end_url
+
+    else:
+        line_list = jsonpath.jsonpath(myjson,line_list_xpath)
+        if line_list:
+            line_url = line_list[0]
+            endUrl = urljoin(url, line_url)
+            return endUrl
+        else:
+            return None
 
 @app.route('/test_template', methods=['POST'])
 def hello_world():
@@ -93,15 +117,15 @@ def hello_world():
     start_url = templateInfo_data["start_url"]
 
     line_list_xpath = templateInfo_data["line_list_xpath"]
-
     if "page_xpath" in templateInfo_data:
         url_xpath = templateInfo_data["page_xpath"]["url_xpath"]  # linelist页有需要提起的其他数据
     else:
         url_xpath = False
 
-    print(line_list_xpath)
-
-    url = get_one_url(line_list_xpath, start_url, url_xpath)
+    if templateInfo_data["web_type"] == 0:
+        url = get_one_url(line_list_xpath, start_url, url_xpath)
+    else:
+        url = get_dongtai_one_url(line_list_xpath, start_url, url_xpath)
     if url:
         end_content = get_data(url, templateInfo_data)
         endData = {
@@ -116,6 +140,7 @@ def hello_world():
             "successDesc": ""
         }
     return endData
+
 
 
 #     try:
