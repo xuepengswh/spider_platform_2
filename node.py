@@ -156,9 +156,14 @@ class Main():
 
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
-        self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
-        logging.info(ObjectId(mongo_id))
-        logging.info("将此数据更改为进行中状态")
+        status_num_data = self.myMongo["task_info"].find_one({"_id": ObjectId(mongo_id)})
+        status_num = int(status_num_data["status"])
+        if status_num == 2:
+            pass
+        else:
+            self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
+            logging.info(ObjectId(mongo_id))
+            logging.info("将此数据更改为进行中状态")
 
     def get_proxy(self):
         ps = requests.get(self.proxy_url).text
@@ -176,7 +181,7 @@ class Main():
         if "industrial_class_source" in data:
             data["industrial_class"] = "".join(  clean_industrial.normalize(data["industrial_class_source"],"")  )
         if "category_word_source" in data:
-            data["category_word"] = "".join(   clean_category.normalize(data["category_word_source"])  )
+            data["category_word"] = "".join(   clean_category.normalize(data["category_word_source"],"")  )
         return data
 
 
