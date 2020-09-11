@@ -93,6 +93,7 @@ class Main():
         self.end_page_value = ""
         self.url_type = ""
         self.lineListXpath = ""
+        self.json_page_re = ""
         self.page_xpath = ""    #page页如果有需要提取的数据
         # 获取页面元素
         self.titleXpath = ""
@@ -150,12 +151,17 @@ class Main():
 
     def get_PageUrlList(self):
         """构造翻页链接"""
-        urlList = [self.url_type % i for i in range(int(self.second_page_value), int(self.end_page_value))]
+        urlList = []
+        for i in range(int(self.second_page_value), int(self.end_page_value)):
+            page_num = str(i)
+            page_url = self.url_type.replace("%d", page_num)
+            urlList.append(page_url)
+        # urlList = [self.url_type % i for i in range(int(self.second_page_value), int(self.end_page_value))]
         urlList.append(self.start_url)
         return urlList
 
-    def download(self, url):
 
+    def download(self, url):
         try:
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
@@ -208,12 +214,17 @@ class Main():
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
         self.lineListXpath = temp_data["line_list_xpath"]
+        if "json_page_re" in temp_data:
+            self.json_page_re = temp_data["json_page_re"]
+        else:
+            self.json_page_re = ""
         if "page_xpath" in temp_data:
             self.page_xpath = temp_data["page_xpath"]
         else:
             self.page_xpath = ""
 
     def get_content_url_list(self, url):
+        """获取静态链接页内容"""
         if not self.page_xpath:
             endUrlList = []
             response = self.download(url)
@@ -247,18 +258,30 @@ class Main():
                         keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
                         one_data_dict[key] = keystr
-                    # one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                    one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
 
-
     def get_dongtai_content_url_list(self, url):
+        """获取动态链接页内容"""
         if not self.page_xpath:
             endUrlList = []
             response = self.download(url)
             if response[1] == 200:
                 ps = response[0]
-                myjson = json.loads(ps)
+                ps = ps.replace("\n","")
+                if self.json_page_re:
+                    ps = re.compile(self.json_page_re).findall(ps)
+                    if ps:
+                        ps = ps[0]
+                    else:
+                        logging.info(url,"---------这个url用json_page_re处理，结果为空")
+                        return
+                try:
+                    myjson = json.loads(ps)
+                except:
+                    logging.info(url, "---------这个url获取的网页数据加载为json时候出错")
+                    return
                 linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
                 for ii in linelist:
                     endUrl = urljoin(url, ii)
@@ -269,6 +292,14 @@ class Main():
             response = self.download(url)
             if response[1] == 200:
                 ps = response[0]
+                ps = ps.replace("\n","")
+                if self.json_page_re:
+                    ps = re.compile(self.json_page_re).findall(ps)
+                    if ps:
+                        ps = ps[0]
+                    else:
+                        logging.info(url,"---------这个url用json_page_re处理，结果为空")
+                        return
                 myjson = json.loads(ps)
                 linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
                 for line in linelist:
@@ -293,9 +324,9 @@ class Main():
                     end_data_list.append(one_data_dict)
             return end_data_list
 
-
-    def jingTai(self):
-        if self.executionTimes == 1:  # 存量爬虫
+    def spider_start(self):
+        # 存量爬虫
+        if self.executionTimes == 1:
             pageList = self.get_PageUrlList()  # 页数链接
 
             for url in pageList:
@@ -308,7 +339,8 @@ class Main():
                     print(self.url_key_name)
                     self.redis.lpush(self.url_key_name, content_data)
 
-        else:  # 增量爬虫
+        # 增量爬虫
+        else:
             switch = False
             if self.webType == 0:
                 start_data_urlList = self.get_content_url_list(self.start_url)
@@ -316,6 +348,7 @@ class Main():
                 start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
             print(start_data_urlList)
 
+            # 链接页只有url的情况下
             if not self.page_xpath:
                 for start_data in start_data_urlList:   #判断第一页
                     if start_data in self.bloom:
@@ -343,6 +376,7 @@ class Main():
                                 print(second_content_url)
                         if swtich2:
                             break
+            # 文本链接在一个字典里
             else:
                 for start_data in start_data_urlList:  # 判断第一页
                     start_data_json = json.loads(start_data)
@@ -371,11 +405,9 @@ class Main():
                                 print(second_content_data)
                         if swtich2:
                             break
-
             self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
     def change_outqueue_num(self):
-
         keyName = self.redis_platform_address + ":status:" + self.taskCode  # 获取任务状态键值
         status_data = self.redis.get(keyName)  # 获取所有状态数据
         print("-------------------------", self.taskCode)
@@ -383,88 +415,6 @@ class Main():
         taskData["outQueue"] = 1        #更新json数据
         keyname_data = json.dumps(taskData)  # 转化为字符串
         self.redis.set(keyName, keyname_data)  # 更新redis
-
-    def dongTai(self):
-        if self.executionTimes == 1:  # 存量爬虫
-            pageList = self.get_PageUrlList()  # 页数链接
-
-            for url in pageList:
-                urlList = self.get_dongtai_content_url_list(url)
-
-                for content_data in urlList:
-                    print(self.url_key_name)
-                    self.redis.lpush(self.url_key_name, content_data)
-
-        else:  # 增量爬虫
-            switch = False
-            start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
-            print(start_data_urlList)
-
-            if not self.page_xpath:
-                for start_data in start_data_urlList:   #判断第一页
-                    if start_data in self.bloom:
-                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
-                    else:
-                        self.bloom.add(start_data)
-                        self.redis.lpush(self.url_key_name, start_data)
-                        print(start_data)
-                        print(self.url_key_name)
-
-                if not switch:  #判断第二页及以后页数
-                    for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
-                        swtich2 = False
-                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
-                        second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
-                        for second_content_url in second_content_urlList:
-                            if second_content_url in self.bloom:
-                                swtich2 = True
-                            else:
-                                self.bloom.add(second_content_url)
-                                self.redis.lpush(self.url_key_name, second_content_url)
-                                print(second_content_url)
-                        if swtich2:
-                            break
-            else:
-                for start_data in start_data_urlList:  # 判断第一页
-                    if start_data["url"] in self.bloom:
-                        switch = True  # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
-                    else:
-                        self.bloom.add(start_data)
-                        start_data = json.dumps(start_data)
-                        self.redis.lpush(self.url_key_name, start_data)
-                        print(start_data)
-                        print(self.url_key_name)
-
-                if not switch:  # 判断第二页及以后页数
-                    for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
-                        swtich2 = False
-                        theUrl = self.url_type % pageIndex  # 从第二页开始构造链接
-                        second_content_urlList = self.get_content_url_list(theUrl)  # 每一页的文本链接列表
-                        for second_content_data in second_content_urlList:
-                            if second_content_data["url"] in self.bloom:
-                                swtich2 = True
-                            else:
-                                self.bloom.add(second_content_data["url"])
-                                second_content_data = json.dumps(second_content_data)
-                                self.redis.lpush(self.url_key_name, second_content_data)
-                                print(second_content_data)
-                        if swtich2:
-                            break
-
-            self.bloom_writeto_db()  # 布隆过滤器保存到数据库
-        # line_list_xpath = ""
-        # url_templace = ""
-        # for i in range(100000):
-        #     url = url_templace % i
-        #     response = self.download(url)
-        #     if response[1] == 200:
-        #         ps = response[0]
-        #         myjson = json.loads(ps)
-        #         lineList = jsonpath.jsonpath(myjson, line_list_xpath)
-        #         if len(lineList) < 1:
-        #             break
-        #         for lineurl in line_list_xpath:
-        #             contentUrl = urljoin(url, lineurl)
 
     def start(self):
         while True:
@@ -479,9 +429,9 @@ class Main():
                 self.change_outqueue_num()      #更改outQueue值为1
                 print(tastData)
                 self.update_attr()  # 更新属性
-                if self.executionTimes != 1:    #增加爬虫
-                    self.bloom_readfrom_db()  # 更新布隆过滤器
-                self.jingTai()
+                if self.executionTimes != 1:    #增加爬虫      更新布隆过滤器
+                    self.bloom_readfrom_db()
+                self.spider_start()
                 time.sleep(1)
 
 

@@ -94,9 +94,9 @@ class Main():
         self.task_status = None
         self.webSite = ""
         self.langCode = ""
-        self.store_key_name = ""    # 存储字段名字
 
         # 下载 设置初始化
+        self.storeQueueKey = None
         self.timeInterval = 0  # 时间间隔
         self.thread_num = 1  # 线程数
         self.proxy = "0"  # 代理
@@ -109,6 +109,7 @@ class Main():
         self.selenium = None  # 是否使用selenium
         self.driver = None
         self.xpath_data = ""
+        self.templateCode = ""
 
     def updata_attr(self):
         # self.task_code  在start 和get_task_status函数中更新
@@ -132,6 +133,8 @@ class Main():
 
         self.timeInterval = self.task_status["timeInterval"]
         self.storeQueue = self.task_status["storeQueue"]
+        self.storeQueueKey = self.task_status["storeQueueKey"]
+        self.templateCode = self.task_status["templateCode"]
 
         # 更新模板设置状态
         if "header" in tempData:
@@ -143,11 +146,8 @@ class Main():
             opt = webdriver.ChromeOptions()
             opt.set_headless()
             self.driver = webdriver.Chrome(options=opt)
-        # 数据库存储字段名字
-        if "store_key_name" in tempData:
-            self.store_key_name = tempData["store_key_name"]
-        else:
-            self.store_key_name = ""
+
+
 
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
@@ -162,25 +162,19 @@ class Main():
     def insert_data(self, data):
         tempData = json.loads(self.task_status["templateInfo"])
         data_id = data["_id"]
+
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
                 data[key] = value
-
+        data["template_code"] = self.templateCode
 
         if self.storeQueue == "1":  # 存储到redis和mongodb
-            if self.langCode == "zh":   #中文存储队列
-                consStore_url_key_name = self.redis_platform_address+":constant:summary:" + self.task_code  # 永久的redis存储
-                self.redis.lpush(consStore_url_key_name, data_id)
-                consStore_url_key_name = self.redis_platform_address+":constant:tag:" + self.task_code  # 永久的redis存储
-                self.redis.lpush(consStore_url_key_name, data_id)
-                self.myMongo[self.task_code].insert_one(data)
-            else:   #英文存储队列
-                consStore_url_key_name = self.redis_platform_address + ":constant:trans:" + self.task_code  # 永久的redis存储
-                self.redis.lpush(consStore_url_key_name, data_id)
-                self.myMongo[self.task_code].insert_one(data)
-
-        # tempStore_url_key_name = self.redis_platform_address+":temporary"  # 暂时的存储
-        # self.redis.lpush(tempStore_url_key_name, data)
+            redis_store_data = {"id":data_id,"collectionName":self.task_code}
+            redis_store_data = json.dumps(redis_store_data)
+            self.redis.lpush(self.storeQueueKey, redis_store_data)
+            self.myMongo[self.task_code].insert_one(data)
+        else:   #存储到mongo
+            self.myMongo[self.task_code].insert_one(data)
 
 
     def get_url_key_name(self):
