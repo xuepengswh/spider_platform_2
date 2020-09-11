@@ -19,6 +19,11 @@ import logging
 import pymongo
 import uuid
 from bson.objectid import ObjectId
+from cleaning_master import time as clean_time
+from cleaning_master import subject as clean_subject
+from cleaning_master import organize as clean_organize
+from cleaning_master import category as clean_category
+from cleaning_master import industrial as clean_industrial
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
                     filename="spider.log")
@@ -159,7 +164,25 @@ class Main():
         ps = requests.get(self.proxy_url).text
         return ps
 
+    def clean_data(self,data):
+        if "statement_time_source" in data:
+            data["statement_time"] = "".join( clean_time.normalize(data["statement_time_source"],"")  )
+        if "written_time_source" in data:
+            data["written_time"] = "".join( clean_time.normalize(data["written_time_source"],"")  )
+        if "organization_source" in data:
+            data["organization"] = "".join( clean_organize.normalize(data["organization_source"],"zh")  )
+        if "subject_class_source" in data:
+            data["subject_class"] = "".join(  clean_subject.normalize(data["subject_class_source"],"")  )
+        if "industrial_class_source" in data:
+            data["industrial_class"] = "".join(  clean_industrial.normalize(data["industrial_class_source"],"")  )
+        if "category_word_source" in data:
+            data["category_word"] = "".join(   clean_category.normalize(data["category_word_source"])  )
+        return data
+
+
     def insert_data(self, data):
+        data = self.clean_data(data)
+
         tempData = json.loads(self.task_status["templateInfo"])
         data_id = data["_id"]
 
@@ -228,7 +251,6 @@ class Main():
                     hashTitle = hashlib.md5(keystr.encode())
                     hashTitle = hashTitle.hexdigest().upper()
                     endData["titleMD5"] = hashTitle
-
                 endData[key] = keystr
 
 
