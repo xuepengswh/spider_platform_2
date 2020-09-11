@@ -106,6 +106,7 @@ class Main():
                            'Windows NT 6.1; Win64; x64; Trident/5.0)'),
         }  # header
         self.timeout = 10
+        self.timeInterval = 0  # 时间间隔
 
     def bloom_readfrom_db(self):
         tempFile = open("tempFile", "wb")
@@ -189,6 +190,7 @@ class Main():
 
         self.executionTimes = taskData["executionTimes"]
         self.taskCode = taskData["taskCode"]
+        self.timeInterval = taskData["timeInterval"]
         self.url_key_name = self.redis_platform_address+":url:" + self.taskCode
 
 
@@ -214,6 +216,7 @@ class Main():
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
         self.lineListXpath = temp_data["line_list_xpath"]
+
         if "json_page_re" in temp_data:
             self.json_page_re = temp_data["json_page_re"]
         else:
@@ -330,8 +333,10 @@ class Main():
             pageList = self.get_PageUrlList()  # 页数链接
 
             for url in pageList:
+                time.sleep(self.timeInterval)
                 if self.webType == 0:
                     urlList = self.get_content_url_list(url)
+
                 else:
                     urlList = self.get_dongtai_content_url_list(url)
 
