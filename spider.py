@@ -107,7 +107,10 @@ class Main():
         }  # header
         self.timeout = 10
         self.timeInterval = 0  # 时间间隔
+        self.post_data = ""
+        self.page_num_str = ""
 
+    
     def bloom_readfrom_db(self):
         tempFile = open("tempFile", "wb")
 
@@ -161,17 +164,16 @@ class Main():
         urlList.append(self.start_url)
         return urlList
 
-
     def download(self, url):
         try:
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header,verify=False)
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                response = requests.get(url, timeout=self.timeout, headers=self.header)
+                response = requests.get(url, timeout=self.timeout, headers=self.header,verify=False)
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
@@ -180,6 +182,25 @@ class Main():
         except Exception as e:
             print(e)
             return (0,0)
+
+    def post_download(self,url,data):
+        try:
+            if self.proxy == "1":
+                proxy = self.get_proxy().strip()
+                proxies = {'https': proxy}  # 获取代理
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
+                logging.info(url)
+                logging.info("以使用代理")
+            else:
+                response = requests.post(url, timeout=self.timeout, headers=self.header,data=data)
+
+            statusCode = response.status_code
+            codeStyle = cchardet.detect(response.content)["encoding"]
+            webData = response.content.decode(codeStyle, errors="ignore")
+            return (webData, statusCode)
+        except Exception as e:
+            print(e)
+            return (0, 0)
 
     def update_attr(self):
         keyName = self.redis_platform_address+":status:" + self.taskCode  # 获取任务状态键值
@@ -217,10 +238,20 @@ class Main():
         self.url_type = temp_data["url_type"]
         self.lineListXpath = temp_data["line_list_xpath"]
 
+
         if "json_page_re" in temp_data:
             self.json_page_re = temp_data["json_page_re"]
         else:
             self.json_page_re = ""
+        if "post" in temp_data:
+            self.post_data = temp_data["post"]
+        else:
+            self.post_data = None
+        if "page_num_str" in temp_data:
+            self.page_num_str = temp_data["page_num_str"]
+        else:
+            self.page_num_str = ""
+
         if "page_xpath" in temp_data:
             self.page_xpath = temp_data["page_xpath"]
         else:
@@ -327,6 +358,34 @@ class Main():
                     end_data_list.append(one_data_dict)
             return end_data_list
 
+    def get_post_data_list(self):
+        print(1111111111111111)
+        data_list = []
+        for i in range(int(self.second_page_value), int(self.end_page_value)):
+            current_page_data = self.post_data
+            page_num = str(i)
+            current_page_data["page_num"] = page_num
+            data_list.append(current_page_data)
+        return data_list
+
+    def post_get_data(self):
+        print(22222222222222222222)
+        """post_data,page_num_str"""
+        post_data_list = self.get_post_data_list()
+
+        for post_data in post_data_list:
+            time.sleep(self.timeInterval)
+            response = self.post_download(self.start_url,post_data)
+            if response[1] == 200:
+                ps = response[0]
+                ps = ps.replace("\n","")
+                mytree = lxml.etree.HTML(ps)
+                linelist = mytree.xpath(self.lineListXpath)
+                for ii in linelist:
+                    endUrl = urljoin(self.start_url, ii)
+                    print(self.url_key_name)
+                    self.redis.lpush(self.url_key_name, endUrl)
+
     def spider_start(self):
         # 存量爬虫
         if self.executionTimes == 1:
@@ -343,7 +402,6 @@ class Main():
                 for content_data in urlList:
                     print(self.url_key_name)
                     self.redis.lpush(self.url_key_name, content_data)
-
         # 增量爬虫
         else:
             switch = False
@@ -436,7 +494,12 @@ class Main():
                 self.update_attr()  # 更新属性
                 if self.executionTimes != 1:    #增加爬虫      更新布隆过滤器
                     self.bloom_readfrom_db()
-                self.spider_start()
+                if self.post_data or type(self.post_data) == dict:
+
+                    self.post_get_data()
+                else:
+                    print("++++++++++++++++++++++++++++++")
+                    self.spider_start()
                 time.sleep(1)
 
 

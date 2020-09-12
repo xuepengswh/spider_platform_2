@@ -157,13 +157,14 @@ class Main():
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
         status_num_data = self.myMongo["task_info"].find_one({"_id": ObjectId(mongo_id)})
-        status_num = int(status_num_data["status"])
-        if status_num == 2:
-            pass
-        else:
-            self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
-            logging.info(ObjectId(mongo_id))
-            logging.info("将此数据更改为进行中状态")
+        if status_num_data:
+            status_num = int(status_num_data["status"])
+            if status_num == 2:
+                pass
+            else:
+                self.myMongo["task_info"].update_one({"_id": ObjectId(mongo_id)}, {"$set": {"status": "2"}})
+                logging.info(ObjectId(mongo_id))
+                logging.info("将此数据更改为进行中状态")
 
     def get_proxy(self):
         ps = requests.get(self.proxy_url).text
@@ -187,16 +188,14 @@ class Main():
 
     def insert_data(self, data):
         data = self.clean_data(data)
-
         tempData = json.loads(self.task_status["templateInfo"])
-        data_id = data["_id"]
-
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
                 data[key] = value
         data["template_code"] = self.templateCode
 
         if self.storeQueue == "1":  # 存储到redis和mongodb
+            data_id = data["_id"]
             redis_store_data = {"id":data_id,"collectionName":self.task_code}
             redis_store_data = json.dumps(redis_store_data)
             self.redis.lpush(self.storeQueueKey, redis_store_data)
@@ -285,11 +284,11 @@ class Main():
             if self.proxy == "1":  # 使用代理
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header,verify=False)
                 logging.info(url)
                 logging.info("以使用代理")
             else:  # 不适用代理
-                response = requests.get(url, timeout=self.timeout, headers=self.header)
+                response = requests.get(url, timeout=self.timeout, headers=self.header,verify=False)
             code_style = cchardet.detect(response.content)["encoding"]
             webData = response.content.decode(code_style, errors="ignore")
             statusCode = response.status_code
