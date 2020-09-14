@@ -243,13 +243,27 @@ class Main():
                         endcontent += html_content
 
                     endData["html_content"] = endcontent
+
+                    #下面是从html_content中提取content
+                    endcontent = re.compile("<script[^>]*?>[\\s\\S]*?<\\/script>").sub("", endcontent)
+                    endcontent = re.compile("<!--[\\s\\S]*?-->").sub("", endcontent)
+                    endcontent = re.compile("<style[^>]*?>[\\s\\S]*?<\\/style>").sub("", endcontent)
+                    endcontent = re.compile("<[^>]+>").sub("", endcontent)
+                    endcontent = re.compile("\\s*|\t|\r|\n|　*").sub("", endcontent)
+                    endData["content"] = endcontent
+
                     continue
                 keystr = mytree.xpath(keyxpath)
+
+
 
                 keystr = " ".join(keystr)
                 keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                 keystr = keystr.strip()
                 key = key.replace("_xpath","")
+
+                if key == "content":    #content已经从htmlcontent中提取出来了
+                    continue
 
                 if key == "title":
                     hashTitle = hashlib.md5(keystr.encode())
