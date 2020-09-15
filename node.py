@@ -20,10 +20,16 @@ import pymongo
 import uuid
 from bson.objectid import ObjectId
 from cleaning_master import time as clean_time
+from cleaning_master import write_time as clean_written_time
 from cleaning_master import subject as clean_subject
 from cleaning_master import organize as clean_organize
 from cleaning_master import category as clean_category
 from cleaning_master import industrial as clean_industrial
+from cleaning_master import policy_index_number as clean_policy_index_number
+from cleaning_master import fujian_and_image_url as clean_fujian_and_image_url
+from cleaning_master import source_website as clean_source_website
+from cleaning_master import issued_number as clean_issued_number
+
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
                     filename="spider.log")
@@ -174,7 +180,7 @@ class Main():
         if "statement_time_source" in data:
             data["statement_time"] = "".join( clean_time.normalize(data["statement_time_source"],"")  )
         if "written_time_source" in data:
-            data["written_time"] = "".join( clean_time.normalize(data["written_time_source"],"")  )
+            data["written_time"] = "".join(  clean_written_time.normalize(data["written_time_source"],"")  )
         if "organization_source" in data:
             data["organization"] = "".join( clean_organize.normalize(data["organization_source"],"zh")  )
         if "subject_class_source" in data:
@@ -183,6 +189,17 @@ class Main():
             data["industrial_class"] = "".join(  clean_industrial.normalize(data["industrial_class_source"],"")  )
         if "category_word_source" in data:
             data["category_word"] = "".join(   clean_category.normalize(data["category_word_source"],"")  )
+        if "policy_index_number_source" in data:
+            data["policy_index_number"] = "".join(  clean_policy_index_number.normalize(data["policy_index_number_source"],""))
+        if "images_source" in data:
+            data["images"] = "".join(   clean_fujian_and_image_url.normalize(data["images_source"],data["url"])  )
+        if "fujian_href_source" in data:
+            data["fujian_href"] = "".join( clean_fujian_and_image_url.normalize(data["ujian_href_source"],data["url"]) )
+        if "source_website_source" in data:
+            data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],"zh") )
+        if "issued_number_source" in data:
+            data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],"zh")  )
+
         return data
 
 
