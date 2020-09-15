@@ -110,7 +110,7 @@ class Main():
         self.post_data = ""
         self.page_num_str = ""
 
-    
+    # 从数据库读布隆过滤器数据
     def bloom_readfrom_db(self):
         tempFile = open("tempFile", "wb")
 
@@ -129,6 +129,7 @@ class Main():
         ps = requests.get(self.proxy_url).text
         return ps
 
+    # 将布隆过滤器数据写入数据库保存
     def bloom_writeto_db(self):
         bloomDbKeyName = self.redis_platform_address + ":bloom:" + self.taskCode
 
@@ -153,6 +154,7 @@ class Main():
         logging.info(bloomDbKeyName)
         logging.info("布隆过滤器成功保存到数据库")
 
+    # 构造链接页的所有链接
     def get_PageUrlList(self):
         """构造翻页链接"""
         urlList = []
@@ -164,6 +166,7 @@ class Main():
         urlList.append(self.start_url)
         return urlList
 
+    #根据url下载数据
     def download(self, url):
         try:
             if self.proxy == "1":
@@ -183,6 +186,7 @@ class Main():
             print(e)
             return (0,0)
 
+    #根据url和datapost下载数据
     def post_download(self,url,data):
         try:
             if self.proxy == "1":
@@ -202,6 +206,7 @@ class Main():
             print(e)
             return (0, 0)
 
+    # 更新所有需要的属性
     def update_attr(self):
         keyName = self.redis_platform_address+":status:" + self.taskCode  # 获取任务状态键值
         status_data = self.redis.get(keyName)  # 获取所有状态数据
@@ -257,6 +262,7 @@ class Main():
         else:
             self.page_xpath = ""
 
+    # 根据url获取该页面的所有文本的链接以及其他数据
     def get_content_url_list(self, url):
         """获取静态链接页内容"""
         if not self.page_xpath:
@@ -280,7 +286,7 @@ class Main():
                 for line in linelist:
                     one_data_dict = {}
                     for key,keyxpath in self.page_xpath.items():
-                        if key == "url_xpath":
+                        if key == "url_xpath" or key=="url":
                             content_url = line.xpath(keyxpath)
                             if content_url:
                                 endUrl = urljoin(url, content_url[0])
@@ -291,11 +297,15 @@ class Main():
 
                         keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
+
+                        if keystr =="images" or keystr == "images_xpath":   #对图片的链接进行处理
+                            keystr = urljoin(url,keystr)
+
                         one_data_dict[key] = keystr
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
-
+    # 根据 url获取该  json  页面所有的链接以及其他数据
     def get_dongtai_content_url_list(self, url):
         """获取动态链接页内容"""
         if not self.page_xpath:
@@ -357,6 +367,7 @@ class Main():
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
+
 
     def get_post_data_list(self):
         print(1111111111111111)
