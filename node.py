@@ -29,7 +29,7 @@ from cleaning_master import policy_index_number as clean_policy_index_number
 from cleaning_master import fujian_and_image_url as clean_fujian_and_image_url
 from cleaning_master import source_website as clean_source_website
 from cleaning_master import issued_number as clean_issued_number
-
+import upload_files
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
                     filename="spider.log")
@@ -158,8 +158,6 @@ class Main():
             opt.set_headless()
             self.driver = webdriver.Chrome(options=opt)
 
-
-
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
         status_num_data = self.myMongo["task_info"].find_one({"_id": ObjectId(mongo_id)})
@@ -176,6 +174,20 @@ class Main():
         ps = requests.get(self.proxy_url).text
         return ps
 
+    def image_fujian_deal(self,data):
+        data["html_content_back"] = data["html_content"]
+        if "images_source" in data:     #处理图片
+            data["images"] = upload_files.get_one_update_data(data,"images_source")
+            for href_str, path_str in data["images"]:
+                html_content = data["html_content"].replace(href_str,path_str)
+                data["html_content"] = html_content
+        if "fujian_href_source" in data:    #处理附件
+            data["fujian_href"] = upload_files.get_one_update_data(data,"fujian_href_source")
+            for href_str, path_str in data["fujian_href"]:
+                html_content = data["html_content"].replace(href_str,path_str)
+                data["html_content"] = html_content
+        return data
+
     def clean_data(self,data):
         if "statement_time_source" in data:
             data["statement_time"] = "".join( clean_time.normalize(data["statement_time_source"],"")  )
@@ -191,19 +203,16 @@ class Main():
             data["category_word"] = "".join(   clean_category.normalize(data["category_word_source"],"")  )
         if "policy_index_number_source" in data:
             data["policy_index_number"] = "".join(  clean_policy_index_number.normalize(data["policy_index_number_source"],""))
-        if "images_source" in data:
-            data["images"] = "".join(   clean_fujian_and_image_url.normalize(data["images_source"],data["url"])  )
-        if "fujian_href_source" in data:
-            data["fujian_href"] = "".join( clean_fujian_and_image_url.normalize(data["ujian_href_source"],data["url"]) )
         if "source_website_source" in data:
             data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],"zh") )
         if "issued_number_source" in data:
             data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],"zh")  )
 
+
         return data
 
-
     def insert_data(self, data):
+        data = self.image_fujian_deal(data)
         # data = self.clean_data(data)
         tempData = json.loads(self.task_status["templateInfo"])
         if "constant_filed" in tempData:
@@ -219,7 +228,6 @@ class Main():
             self.myMongo[self.task_code].insert_one(data)
         else:   #存储到mongo
             self.myMongo[self.task_code].insert_one(data)
-
 
     def get_url_key_name(self):
         url_key_find = self.redis_platform_address+":url:*"
