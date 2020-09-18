@@ -19,7 +19,7 @@ import logging
 import pymongo
 import uuid
 from bson.objectid import ObjectId
-from cleaning_master import time as clean_time
+from cleaning_master import state_time as clean_time
 from cleaning_master import write_time as clean_written_time
 from cleaning_master import subject as clean_subject
 from cleaning_master import organize as clean_organize
@@ -148,7 +148,7 @@ class Main():
         self.templateCode = self.task_status["templateCode"]
 
         # 更新模板设置状态
-        if "header" in tempData:
+        if "headers" in tempData:
             self.header = tempData["header"]
         if "timeout" in tempData:
             self.timeout = tempData["timeout"]
@@ -204,7 +204,7 @@ class Main():
 
 
     def insert_data(self, data):
-        data = self.clean_data(data)
+        # data = self.clean_data(data)
         tempData = json.loads(self.task_status["templateInfo"])
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
@@ -263,21 +263,36 @@ class Main():
 
                     #下面是从html_content中提取content
                     endcontent = re.compile("<script[^>]*?>[\\s\\S]*?<\\/script>").sub("", endcontent)
-                    endcontent = re.compile("<!--[\\s\\S]*?-->").sub("", endcontent)
+                    endcontent = re.compile("<!--(.|[\r\n])*?-->").sub("", endcontent)
                     endcontent = re.compile("<style[^>]*?>[\\s\\S]*?<\\/style>").sub("", endcontent)
                     endcontent = re.compile("<[^>]+>").sub("", endcontent)
                     endcontent = re.compile("\\s*|\t|\r|\n|　*").sub("", endcontent)
                     endData["content"] = endcontent
 
                     continue
+                if key == "head_info_data":  # htmlContentXpath单独处理
+                    total_html_content = mytree.xpath(keyxpath)  # html_content
+                    endcontent = ""
+                    for one_content in total_html_content:
+                        html_content = lxml.etree.tostring(one_content, encoding="utf-8", pretty_print=True,
+                                                           method="html")
+                        codeStyle = cchardet.detect(html_content)["encoding"]
+                        html_content = html_content.decode(codeStyle, errors="ignore")
+                        endcontent += html_content
+
+                    endData["head_info_data"] = endcontent
+                    continue
+
                 keystr = mytree.xpath(keyxpath)
 
-
-
-                keystr = " ".join(keystr)
+                key = key.replace("_xpath", "")
+                if key == "image" or key == "images" or key == "image_url_list" or key=="fujian_href_source" or  key == "image_source" or key == "images_source" or key == "image_url_list_source" or key=="fujian_text_source":
+                    endData[key] = keystr
+                    continue
+                else:
+                    keystr = " ".join(keystr)
                 keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                 keystr = keystr.strip()
-                key = key.replace("_xpath","")
 
                 if key == "content":    #content已经从htmlcontent中提取出来了
                     continue

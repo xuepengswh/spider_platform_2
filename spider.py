@@ -101,7 +101,7 @@ class Main():
 
         self.proxy = None
         self.proxy_url = None
-        self.header = {
+        self.headers = {
             'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
                            'Windows NT 6.1; Win64; x64; Trident/5.0)'),
         }  # header
@@ -172,11 +172,11 @@ class Main():
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header,verify=False)
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.headers,verify=False)
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                response = requests.get(url, timeout=self.timeout, headers=self.header,verify=False)
+                response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
@@ -188,15 +188,17 @@ class Main():
 
     #根据url和datapost下载数据
     def post_download(self,url,data):
+        print(data)
+        print(self.headers)
         try:
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
                 proxies = {'https': proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header)
+                response = requests.post(url, proxies=proxies, timeout=self.timeout, headers=self.headers,data=data)
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                response = requests.post(url, timeout=self.timeout, headers=self.header,data=data)
+                response = requests.post(url, timeout=self.timeout, headers=self.headers,data=data)
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
@@ -227,11 +229,12 @@ class Main():
         if "proxyProductValue" in taskData:
             self.proxy_url = taskData["proxyProductValue"]
         if "header" in taskData:
-            self.header = taskData["header"]
+            self.headers = taskData["headers"]
         if "timeout" in taskData:
             self.timeout = taskData["timeout"]
         if "selenium" in taskData:
             self.selenium = taskData["selenium"]
+
 
 
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
@@ -261,6 +264,13 @@ class Main():
             self.page_xpath = temp_data["page_xpath"]
         else:
             self.page_xpath = ""
+        if "headers" in temp_data:
+            self.headers = temp_data["headers"]
+        else:
+            self.headers = {
+            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
+                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
+        }
 
     # 根据url获取该页面的所有文本的链接以及其他数据
     def get_content_url_list(self, url):
@@ -305,6 +315,7 @@ class Main():
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
+
     # 根据 url获取该  json  页面所有的链接以及其他数据
     def get_dongtai_content_url_list(self, url):
         """获取动态链接页内容"""
@@ -313,7 +324,7 @@ class Main():
             response = self.download(url)
             if response[1] == 200:
                 ps = response[0]
-                ps = ps.replace("\n","")
+                ps = ps.replace("\n","")    #一些有换行符
                 if self.json_page_re:
                     ps = re.compile(self.json_page_re).findall(ps)
                     if ps:
@@ -368,34 +379,111 @@ class Main():
                     end_data_list.append(one_data_dict)
             return end_data_list
 
-
     def get_post_data_list(self):
-        print(1111111111111111)
         data_list = []
         for i in range(int(self.second_page_value), int(self.end_page_value)):
             current_page_data = self.post_data
             page_num = str(i)
-            current_page_data["page_num"] = page_num
+            current_page_data[self.page_num_str] = page_num
             data_list.append(current_page_data)
         return data_list
 
-    def post_get_data(self):
-        print(22222222222222222222)
-        """post_data,page_num_str"""
-        post_data_list = self.get_post_data_list()
+    def post_not_json(self,post_data_list):
+        if self.page_xpath:
+            for post_data in post_data_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(self.start_url,post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    mytree = lxml.etree.HTML(ps)
+                    linelist = mytree.xpath(self.lineListXpath)
+                    for line in linelist:
+                        one_data_dict = {}
+                        for key, keyxpath in self.page_xpath.items():
+                            if key == "url_xpath" or key == "url":
+                                content_url = line.xpath(keyxpath)
+                                if content_url:
+                                    endUrl = urljoin(self.start_url, content_url[0])
+                                    one_data_dict["url"] = endUrl[::]
+                                    continue
+                                else:  # 没有获取到url
+                                    return
 
-        for post_data in post_data_list:
-            time.sleep(self.timeInterval)
-            response = self.post_download(self.start_url,post_data)
-            if response[1] == 200:
-                ps = response[0]
-                ps = ps.replace("\n","")
-                mytree = lxml.etree.HTML(ps)
-                linelist = mytree.xpath(self.lineListXpath)
-                for ii in linelist:
-                    endUrl = urljoin(self.start_url, ii)
-                    print(self.url_key_name)
-                    self.redis.lpush(self.url_key_name, endUrl)
+                            keystr = line.xpath(keyxpath)
+                            keystr = "".join(keystr)
+
+                            if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
+                                keystr = urljoin(self.start_url, keystr)
+
+                            one_data_dict[key] = keystr
+                        one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                        self.redis.lpush(self.url_key_name, one_data_dict)
+        else:
+            for post_data in post_data_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(self.start_url,post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    print(ps)
+                    mytree = lxml.etree.HTML(ps)
+                    linelist = mytree.xpath(self.lineListXpath)
+                    for ii in linelist:
+                        endUrl = urljoin(self.start_url, ii)
+                        print(self.url_key_name)
+                        self.redis.lpush(self.url_key_name, endUrl)
+
+    def post_json(self,post_data_list):
+        if self.page_xpath:
+            for post_data in post_data_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(self.start_url,post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    myjson = json.loads(ps)
+                    linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
+                    for line in linelist:
+                        one_data_dict = {}
+                        for key, keyxpath in self.page_xpath.items():
+                            if key == "url_xpath" or key == "url":
+                                content_url = jsonpath.jsonpath(line,keyxpath)
+                                if content_url:
+                                    endUrl = urljoin(self.start_url, content_url[0])
+                                    one_data_dict["url"] = endUrl[::]
+                                    continue
+                                else:  # 没有获取到url
+                                    return
+
+                            keystr = jsonpath.jsonpath(line,keyxpath)
+                            keystr = "".join(keystr)
+
+                            if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
+                                keystr = urljoin(self.start_url, keystr)
+
+                            one_data_dict[key] = keystr
+                        one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                        self.redis.lpush(self.url_key_name, one_data_dict)
+        else:
+            for post_data in post_data_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(self.start_url,post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    print(ps)
+                    myjson = json.loads(ps)
+                    linelist = jsonpath.jsonpath(myjson,self.lineListXpath) #url的列表
+                    for ii in linelist:
+                        endUrl = urljoin(self.start_url, ii)
+                        print(self.url_key_name)
+                        self.redis.lpush(self.url_key_name, endUrl)
+
+    def post_get_data(self):
+        """post_data,page_num_str"""
+        post_data_list = self.get_post_data_list()  #构造post请求数据
+        if self.webType == 2:
+            self.post_not_json(post_data_list)
+        else:
+            self.post_json(post_data_list)
+
 
     def spider_start(self):
         # 存量爬虫
@@ -406,7 +494,6 @@ class Main():
                 time.sleep(self.timeInterval)
                 if self.webType == 0:
                     urlList = self.get_content_url_list(url)
-
                 else:
                     urlList = self.get_dongtai_content_url_list(url)
 
@@ -506,10 +593,8 @@ class Main():
                 if self.executionTimes != 1:    #增加爬虫      更新布隆过滤器
                     self.bloom_readfrom_db()
                 if self.post_data or type(self.post_data) == dict:
-
                     self.post_get_data()
                 else:
-                    print("++++++++++++++++++++++++++++++")
                     self.spider_start()
                 time.sleep(1)
 
