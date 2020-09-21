@@ -108,7 +108,7 @@ class Main():
         self.timeInterval = 0  # 时间间隔
         self.post_data = ""
         self.page_num_str = ""
-        self.driver = ""
+
 
     # 从数据库读布隆过滤器数据
     def bloom_readfrom_db(self):
@@ -176,18 +176,12 @@ class Main():
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                if self.driver:
-                    self.driver.get(url)
-                    webData = self.driver.page_source
-                    statusCode = 200
+                response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
 
-                else:
-                    response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
-
-                    statusCode = response.status_code
-                    codeStyle = cchardet.detect(response.content)["encoding"]
-                    webData = response.content.decode(codeStyle, errors="ignore")
-                return (webData, statusCode)
+            statusCode = response.status_code
+            codeStyle = cchardet.detect(response.content)["encoding"]
+            webData = response.content.decode(codeStyle, errors="ignore")
+            return (webData, statusCode)
         except Exception as e:
             print(e)
             return (0,0)
@@ -238,10 +232,6 @@ class Main():
             self.timeout = taskData["timeout"]
         else:
             self.timeout = 10
-        if "selenium" in taskData:
-            self.driver = webdriver.Chrome()
-        else:
-            self.driver = ""
 
 
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
@@ -410,7 +400,6 @@ class Main():
         except Exception as e:
             print(e)
             return (0, 0)
-
 
     def get_post_data_list(self):
         data_list = []
