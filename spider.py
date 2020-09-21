@@ -1,13 +1,12 @@
 import requests
 import lxml.etree
-import selenium.webdriver
+from selenium import webdriver
 from bs4 import BeautifulSoup
 import re
 import json
 from urllib.parse import urljoin
 import jsonpath
 from selenium.webdriver.chrome.options import Options
-import threading
 import time
 import redis
 from pybloom_live import BloomFilter
@@ -109,6 +108,7 @@ class Main():
         self.timeInterval = 0  # 时间间隔
         self.post_data = ""
         self.page_num_str = ""
+        self.driver = ""
 
     # 从数据库读布隆过滤器数据
     def bloom_readfrom_db(self):
@@ -169,44 +169,39 @@ class Main():
     #根据url下载数据
     def download(self, url):
         try:
-            if self.proxy == "1":
+            if self.proxy:
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
                 response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.headers,verify=False)
                 logging.info(url)
                 logging.info("以使用代理")
             else:
-                response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
+                if self.driver:
+                    self.driver.get(url)
+                    webData = self.driver.page_source
+                    statusCode = 200
 
-            statusCode = response.status_code
-            codeStyle = cchardet.detect(response.content)["encoding"]
-            webData = response.content.decode(codeStyle, errors="ignore")
-            return (webData, statusCode)
+                else:
+                    response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
+
+                    statusCode = response.status_code
+                    codeStyle = cchardet.detect(response.content)["encoding"]
+                    webData = response.content.decode(codeStyle, errors="ignore")
+                return (webData, statusCode)
         except Exception as e:
             print(e)
             return (0,0)
 
-    #根据url和datapost下载数据
-    def post_download(self,url,data):
-        print(data)
-        print(self.headers)
-        try:
-            if self.proxy == "1":
-                proxy = self.get_proxy().strip()
-                proxies = {'https': proxy}  # 获取代理
-                response = requests.post(url, proxies=proxies, timeout=self.timeout, headers=self.headers,data=data)
-                logging.info(url)
-                logging.info("以使用代理")
-            else:
-                response = requests.post(url, timeout=self.timeout, headers=self.headers,data=data)
+    def change_outqueue_num(self):
+        keyName = self.redis_platform_address + ":status:" + self.taskCode  # 获取任务状态键值
+        status_data = self.redis.get(keyName)  # 获取所有状态数据
+        print("-------------------------", self.taskCode)
+        taskData = json.loads(status_data)
+        taskData["outQueue"] = 1        #更新json数据
+        keyname_data = json.dumps(taskData)  # 转化为字符串
+        self.redis.set(keyName, keyname_data)  # 更新redis
 
-            statusCode = response.status_code
-            codeStyle = cchardet.detect(response.content)["encoding"]
-            webData = response.content.decode(codeStyle, errors="ignore")
-            return (webData, statusCode)
-        except Exception as e:
-            print(e)
-            return (0, 0)
+
 
     # 更新所有需要的属性
     def update_attr(self):
@@ -226,18 +221,31 @@ class Main():
         # 下载 设置
         if "proxy" in taskData:
             self.proxy = taskData["proxy"]
+        else:
+            self.proxy = ""
         if "proxyProductValue" in taskData:
             self.proxy_url = taskData["proxyProductValue"]
+        else:
+            self.proxy_url = ""
         if "header" in taskData:
             self.headers = taskData["headers"]
+        else:
+            self.headers = {
+            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
+                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
+        }  # header
         if "timeout" in taskData:
             self.timeout = taskData["timeout"]
+        else:
+            self.timeout = 10
         if "selenium" in taskData:
-            self.selenium = taskData["selenium"]
-
+            self.driver = webdriver.Chrome()
+        else:
+            self.driver = ""
 
 
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
+        print(temp_data)
         self.webType = temp_data["web_type"]
         # 页面翻页设置
         self.start_url = temp_data["start_url"]
@@ -316,7 +324,7 @@ class Main():
                     end_data_list.append(one_data_dict)
             return end_data_list
 
-    # 根据 url获取该  json  页面所有的链接以及其他数据
+    # json  根据 url获取该  json  页面所有的链接以及其他数据
     def get_dongtai_content_url_list(self, url):
         """获取动态链接页内容"""
         if not self.page_xpath:
@@ -378,6 +386,31 @@ class Main():
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
                     end_data_list.append(one_data_dict)
             return end_data_list
+
+
+    #  post 的有关函数
+    #根据url和datapost下载数据
+    def post_download(self,url,data):
+        print(data)
+        print(self.headers)
+        try:
+            if self.proxy == "1":
+                proxy = self.get_proxy().strip()
+                proxies = {'https': proxy}  # 获取代理
+                response = requests.post(url, proxies=proxies, timeout=self.timeout, headers=self.headers,data=data)
+                logging.info(url)
+                logging.info("以使用代理")
+            else:
+                response = requests.post(url, timeout=self.timeout, headers=self.headers,data=data)
+
+            statusCode = response.status_code
+            codeStyle = cchardet.detect(response.content)["encoding"]
+            webData = response.content.decode(codeStyle, errors="ignore")
+            return (webData, statusCode)
+        except Exception as e:
+            print(e)
+            return (0, 0)
+
 
     def get_post_data_list(self):
         data_list = []
@@ -479,12 +512,12 @@ class Main():
     def post_get_data(self):
         """post_data,page_num_str"""
         post_data_list = self.get_post_data_list()  #构造post请求数据
-        if self.webType == 2:
+        if self.webType == 2:  #post，不是json类型
             self.post_not_json(post_data_list)
-        else:
+        else:       # post  json类型
             self.post_json(post_data_list)
 
-
+    #静态和json的处理，不包含post
     def spider_start(self):
         # 存量爬虫
         if self.executionTimes == 1:
@@ -568,14 +601,6 @@ class Main():
                             break
             self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
-    def change_outqueue_num(self):
-        keyName = self.redis_platform_address + ":status:" + self.taskCode  # 获取任务状态键值
-        status_data = self.redis.get(keyName)  # 获取所有状态数据
-        print("-------------------------", self.taskCode)
-        taskData = json.loads(status_data)
-        taskData["outQueue"] = 1        #更新json数据
-        keyname_data = json.dumps(taskData)  # 转化为字符串
-        self.redis.set(keyName, keyname_data)  # 更新redis
 
     def start(self):
         while True:
@@ -590,8 +615,9 @@ class Main():
                 self.change_outqueue_num()      #更改outQueue值为1
                 print(tastData)
                 self.update_attr()  # 更新属性
-                if self.executionTimes != 1:    #增加爬虫      更新布隆过滤器
+                if self.executionTimes != 1:    #增量爬虫      更新布隆过滤器
                     self.bloom_readfrom_db()
+
                 if self.post_data or type(self.post_data) == dict:
                     self.post_get_data()
                 else:
