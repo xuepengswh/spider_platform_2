@@ -189,12 +189,13 @@ class Main():
         return data
 
     def clean_data(self,data):
+        web_site = data["web_site"]
         if "statement_time_source" in data:
             data["statement_time"] = "".join( clean_time.normalize(data["statement_time_source"],"")  )
         if "written_time_source" in data:
             data["written_time"] = "".join(  clean_written_time.normalize(data["written_time_source"],"")  )
         if "organization_source" in data:
-            data["organization"] = "".join( clean_organize.normalize(data["organization_source"],"zh")  )
+            data["organization"] = "".join( clean_organize.normalize(data["organization_source"],"zh",web_site)  )
         if "subject_class_source" in data:
             data["subject_class"] = "".join(  clean_subject.normalize(data["subject_class_source"],"")  )
         if "industrial_class_source" in data:
@@ -213,7 +214,7 @@ class Main():
 
     def insert_data(self, data):
         data = self.image_fujian_deal(data)
-        # data = self.clean_data(data)
+        data = self.clean_data(data)
         tempData = json.loads(self.task_status["templateInfo"])
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
@@ -232,6 +233,7 @@ class Main():
     def get_url_key_name(self):
         url_key_find = self.redis_platform_address+":url:*"
         url_key_name_list = self.redis.keys(url_key_find)
+
         return url_key_name_list
 
     def get_task_status(self, url_key_name):
@@ -380,6 +382,7 @@ class Main():
             if task_status is None:  # 如果没有找到状态，删除redis的url
                 self.redis.delete(url_key_name)
                 continue  # 找下一个键名
+            print(task_status)
             status_json = json.loads(task_status)
             self.task_status = status_json
             status_num = int(self.task_status["status"])  # 获取状态码
