@@ -205,21 +205,25 @@ class Main():
         if "policy_index_number_source" in data:
             data["policy_index_number"] = "".join(  clean_policy_index_number.normalize(data["policy_index_number_source"],""))
         if "source_website_source" in data:
-            data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],"zh") )
+            data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],"zh",web_site) )
         if "issued_number_source" in data:
-            data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],"zh")  )
-
-
+            data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],"zh"))
         return data
+
+    def get_crawl_time(self):
+        local_time = time.localtime()
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S', local_time)
+        return current_time
 
     def insert_data(self, data):
         data = self.image_fujian_deal(data)
-        data = self.clean_data(data)
+        # data = self.clean_data(data)
         tempData = json.loads(self.task_status["templateInfo"])
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
                 data[key] = value
         data["template_code"] = self.templateCode
+        data["crawl_time"] = self.get_crawl_time()
 
         if self.storeQueue == "1":  # 存储到redis和mongodb
             data_id = data["_id"]
@@ -375,6 +379,7 @@ class Main():
         for i in threadList:
             i.join()
 
+
     def get_key_name(self, url_key_name_list):
         endName = None
         for url_key_name in url_key_name_list:
@@ -422,7 +427,6 @@ class Main():
                 if not tasklist:  # 如果线程队列为空，结束，从头开始执行
                     continue
                 self.thread_start(tasklist)  # 开启多线程下载
-
                 time.sleep(int(self.timeInterval))  # 时间间隔
 
 
