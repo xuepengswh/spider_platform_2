@@ -27,7 +27,7 @@ def post_data(file_type):
     ]
 
     print(upload_url)
-    response = requests.post(upload_url,data=data,files=files).content.decode("utf-8")
+    response = requests.post(upload_url,data=data,files=files,timeout=20).content.decode("utf-8")
     myjson = json.loads(response)
     result = myjson.get("result")
     success = myjson.get("success")
@@ -39,7 +39,7 @@ def post_data(file_type):
 def download_data(url,file_type):
     """成功返回200，失败返回False"""
     try:
-        response = requests.get(url,verify=False)
+        response = requests.get(url,verify=False,timeout = 20)
     except:
         print(123)
         time.sleep(1)
@@ -68,7 +68,7 @@ def get_one_update_data(line_data,field_name):
     for image_url in image_url_list:
         full_image_url = urljoin(content_url, image_url)
         file_type = full_image_url.split(".")[-1]  # 附件类型
-        if file_type in ["pdf","doc","docx","png","jpg","gif","xls","xlsx","ppt","pptx"]:
+        if file_type in ["pdf","doc","docx","png","jpg","gif","xls","xlsx","ppt","pptx","tif"]:
             judge_sueccess = download_data(full_image_url, file_type)  # 下载数据
             if judge_sueccess:
                 success, result = post_data(file_type)  # 上传
