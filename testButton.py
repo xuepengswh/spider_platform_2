@@ -20,7 +20,9 @@ def get_data(url, data):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
     }
     ps = requests.get(url,headers=headers,verify=False).content
-    codeStyle = cchardet.detect(ps)["encoding"]
+    codeStyle = cchardet.detect(ps).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     ps = ps.decode(codeStyle,errors="ignore")
     mytree = lxml.etree.HTML(ps)
     endData = {}
@@ -34,7 +36,9 @@ def get_data(url, data):
 
             if html_content:
                 html_content = lxml.etree.tostring(html_content[0],encoding="utf-8", pretty_print=True, method="html")
-                codeStyle = cchardet.detect(html_content)["encoding"]
+                codeStyle = cchardet.detect(html_content).get("encoding","utf-8")
+                if not codeStyle:
+                    codeStyle = "utf-8"
                 html_content = html_content.decode(codeStyle, errors="ignore")
                 html_content = html_content.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                 endData["html_content_xpath"] = html_content
@@ -59,7 +63,9 @@ def get_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个
     }
     # response = requests.get(url,headers=headers)
     ps = requests.get(url, headers=headers,verify=False).content
-    codeStyle = cchardet.detect(ps)["encoding"]
+    codeStyle = cchardet.detect(ps).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     ps = ps.decode(codeStyle,errors="ignore")
     mytree = lxml.etree.HTML(ps)
 
@@ -91,7 +97,9 @@ def get_dongtai_one_url(line_list_xpath, start_url,url_xpath,json_page_re):    #
     }
     response = requests.get(url,headers=headers,verify=False)
     ps = response.content
-    codeStyle = cchardet.detect(ps)["encoding"]
+    codeStyle = cchardet.detect(ps).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     ps = ps.decode(codeStyle, errors="ignore")
     if json_page_re:
         ps = re.compile(json_page_re).findall(ps)[0]
@@ -128,7 +136,9 @@ def get_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_st
     post_data[page_num_str] = int(first_page_num)
     # print(post_data)
     ps = requests.post(url, headers=headers,data=post_data).content
-    codeStyle = cchardet.detect(ps)["encoding"]
+    codeStyle = cchardet.detect(ps).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     ps = ps.decode(codeStyle,errors="ignore")
     mytree = lxml.etree.HTML(ps)
     if url_xpath:
@@ -163,7 +173,9 @@ def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_n
     post_data[page_num_str] = int(first_page_num)
     # print(post_data)
     ps = requests.post(url, headers=headers, data=post_data).content
-    codeStyle = cchardet.detect(ps)["encoding"]
+    codeStyle = cchardet.detect(ps).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     ps = ps.decode(codeStyle, errors="ignore")
     myjson = json.loads(ps)
     if url_xpath:
@@ -185,7 +197,9 @@ def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_n
 @app.route('/test_template', methods=['POST'])
 def hello_world():
     data = request.get_data()
-    codeStyle = cchardet.detect(data)["encoding"]
+    codeStyle = cchardet.detect(data).get("encoding","utf-8")
+    if not codeStyle:
+        codeStyle="utf-8"
     data = data.decode(codeStyle,errors="ignore")
     data = json.loads(data)
     templateInfo_data = data
