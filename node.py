@@ -259,7 +259,6 @@ class Main():
             endData = {}
 
             for key, keyxpath in self.xpath_data.items():
-
                 if type(keyxpath) == int or (not keyxpath.startswith(r"//")):
                     continue
 
@@ -270,6 +269,8 @@ class Main():
                         html_content = lxml.etree.tostring(one_content, encoding="utf-8", pretty_print=True,
                                                            method="html")
                         codeStyle = cchardet.detect(html_content)["encoding"]
+                        if not codeStyle:
+                            codeStyle = "utf-8"
                         html_content = html_content.decode(codeStyle, errors="ignore")
                         endcontent += html_content
 
@@ -291,6 +292,8 @@ class Main():
                         html_content = lxml.etree.tostring(one_content, encoding="utf-8", pretty_print=True,
                                                            method="html")
                         codeStyle = cchardet.detect(html_content)["encoding"]
+                        if not codeStyle:
+                            codeStyle = "utf-8"
                         html_content = html_content.decode(codeStyle, errors="ignore")
                         endcontent += html_content
 
@@ -350,6 +353,8 @@ class Main():
             else:  # 不适用代理
                 response = requests.get(url, timeout=self.timeout, headers=self.header,verify=False)
             code_style = cchardet.detect(response.content)["encoding"]
+            if not code_style:
+                code_style = "utf-8"
             webData = response.content.decode(code_style, errors="ignore")
             statusCode = response.status_code
             return (webData, statusCode)
