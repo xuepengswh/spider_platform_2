@@ -610,27 +610,51 @@ class Main():
                             break
             self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
+    def judge_status(self,task_data):
+        task_data_json = json.loads(task_data)
+        task_code = task_data_json["taskCode"]
+        status_key_name = self.redis_platform_address + ":status:"+task_code    #状态队列键值
+        task_key_name = self.redis_platform_address + ":task"   #任务队列键值
+        status_data = self.redis.get(status_key_name)
+        status_data = json.loads(status_data)
+        status = status_data["status"]
+
+        if status=="1" or status=="2":
+            print("判断状态为进行中", task_data)
+            self.redis.lrem(task_key_name, 0, task_data)
+            print("删除任务", task_data)
+            return True
+        if status=="3":
+            print("判断状态为暂停",task_data)
+            time.sleep(1)
+            return False
+        if status=="4":
+            print("判断状态为停止",task_data)
+            time.sleep(1)
+            self.redis.lrem(task_key_name,0,task_data)
+            print("删除任务",task_data)
+            return False
+
     def start(self):
         while True:
             task_key_name = self.redis_platform_address+":task"
-            tastData = self.redis.lpop(task_key_name)
+            task_data_list = self.redis.lrange(task_key_name,0,100)
+            for task_data in task_data_list:
+                swtich = self.judge_status(task_data)   # 更新self.taskCode
 
-            if not tastData:    #如果没有任务，暂停10秒在去一次
-                time.sleep(10)
-            else:
-                print(self.taskCode)
-                self.taskCode = json.loads(tastData)["taskCode"]    # 更新self.taskCode
-                self.change_outqueue_num()      #更改outQueue值为1
-                print(tastData)
-                self.update_attr()  # 更新属性
-                if self.executionType != 1:    #增量爬虫      更新布隆过滤器      executionType
-                    self.bloom_readfrom_db()
+                if swtich:
+                    print(self.taskCode)
+                    self.taskCode = json.loads(task_data)["taskCode"]
+                    self.change_outqueue_num()      #更改outQueue值为1
+                    self.update_attr()  # 更新属性
+                    if self.executionType != 1:    #增量爬虫      更新布隆过滤器      executionType
+                        self.bloom_readfrom_db()
 
-                if self.post_data or type(self.post_data) == dict:
-                    self.post_get_data()        #处理post
-                else:
-                    self.spider_start()     #处理静态和json动态
-                time.sleep(1)
+                    if self.post_data or type(self.post_data) == dict:
+                        self.post_get_data()        #处理post
+                    else:
+                        self.spider_start()     #处理静态和json动态
+
 
 
 if __name__ == "__main__":
