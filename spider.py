@@ -84,7 +84,7 @@ class Main():
         self.bloom = None
 
         self.webType = ""
-        self.executionTimes =""
+        self.executionType =""
 
         # 页面翻页设置
         self.start_url = ""
@@ -201,7 +201,7 @@ class Main():
 
         taskData = json.loads(status_data)
 
-        self.executionTimes = taskData["executionTimes"]
+        self.executionType = taskData["executionType"]
         self.taskCode = taskData["taskCode"]
         self.timeInterval = taskData["timeInterval"]
         self.url_key_name = self.redis_platform_address+":url:" + self.taskCode
@@ -433,7 +433,7 @@ class Main():
 
                             one_data_dict[key] = keystr
                         bloom_url = one_data_dict["url"]
-                        if self.executionTimes != 1:  # 增量爬虫
+                        if self.executionType != 1:  # 增量爬虫
                             if bloom_url in self.bloom:
                                 switch = True
                             else:
@@ -457,7 +457,7 @@ class Main():
                     linelist = mytree.xpath(self.lineListXpath)
                     for ii in linelist:
                         endUrl = urljoin(self.start_url, ii)
-                        if self.executionTimes != 1:  # 增量爬虫
+                        if self.executionType != 1:  # 增量爬虫
                             if endUrl in self.bloom:
                                 swtich=True
                             else:
@@ -524,7 +524,7 @@ class Main():
     #静态和json的处理，不包含post
     def spider_start(self):
         # 存量爬虫
-        if self.executionTimes == 1:
+        if self.executionType == 1:
             pageList = self.get_PageUrlList()  # 页数链接
 
             for url in pageList:
@@ -544,7 +544,6 @@ class Main():
                 start_data_urlList = self.get_content_url_list(self.start_url)
             else:
                 start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
-            print(start_data_urlList)
 
             # 链接页只有url的情况下
             if not self.page_xpath:
@@ -554,13 +553,12 @@ class Main():
                     else:
                         self.bloom.add(start_data)
                         self.redis.lpush(self.url_key_name, start_data)
-                        print(start_data)
                         print(self.url_key_name)
 
                 if not switch:  #判断第二页及以后页数
                     for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
                         swtich2 = False
-                        theUrl = self.url_type % pageIndex  #从第二页开始构造链接
+                        theUrl = self.url_type.replace("%d",str(pageIndex))
 
                         if self.webType==0:
                             second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
@@ -625,7 +623,7 @@ class Main():
                 self.change_outqueue_num()      #更改outQueue值为1
                 print(tastData)
                 self.update_attr()  # 更新属性
-                if self.executionTimes != 1:    #增量爬虫      更新布隆过滤器
+                if self.executionType != 1:    #增量爬虫      更新布隆过滤器      executionType
                     self.bloom_readfrom_db()
 
                 if self.post_data or type(self.post_data) == dict:
