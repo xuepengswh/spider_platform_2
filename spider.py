@@ -1,23 +1,19 @@
 import requests
 import lxml.etree
-from selenium import webdriver
-from bs4 import BeautifulSoup
 import re
 import json
 from urllib.parse import urljoin
 import jsonpath
-from selenium.webdriver.chrome.options import Options
 import time
 import redis
 from pybloom_live import BloomFilter
 import cchardet
 import configparser
 import pymongo
-from bson.objectid import ObjectId
 import logging
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
-                    filename="spider.log")
+                    filename="spider925.log")
 
 
 """
@@ -151,8 +147,7 @@ class Main():
             self.myMongo["bloom"].insert_one(insert_data)
 
         bloomFile.close()
-        logging.info(bloomDbKeyName)
-        logging.info("布隆过滤器成功保存到数据库")
+        logging.info("布隆过滤器成功保存到数据库"+bloomDbKeyName)
 
     # 构造链接页的所有链接
     def get_PageUrlList(self):
@@ -297,6 +292,7 @@ class Main():
                 linelist = mytree.xpath(self.lineListXpath)
                 for line in linelist:
                     one_data_dict = {}
+                    swtich = False
                     for key,keyxpath in self.page_xpath.items():
                         if key == "url_xpath" or key=="url":
                             content_url = line.xpath(keyxpath)
@@ -305,7 +301,7 @@ class Main():
                                 one_data_dict["url"] = endUrl
                                 continue
                             else:   #没有获取到url
-                                return
+                                swtich=True
 
                         keystr = line.xpath(keyxpath)
                         keystr = "".join(keystr)
@@ -315,6 +311,9 @@ class Main():
 
                         one_data_dict[key] = keystr
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                    
+                    if swtich:
+                        continue
                     end_data_list.append(one_data_dict)
             return end_data_list
 
@@ -332,12 +331,12 @@ class Main():
                     if ps:
                         ps = ps[0]
                     else:
-                        logging.info(url,"---------这个url用json_page_re处理，结果为空")
+                        logging.info(url+"---------这个url用json_page_re处理，结果为空")
                         return
                 try:
                     myjson = json.loads(ps)
                 except:
-                    logging.info(url, "---------这个url获取的网页数据加载为json时候出错")
+                    logging.info(url+"---------这个url获取的网页数据加载为json时候出错")
                     return
                 linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
                 for ii in linelist:
@@ -355,7 +354,7 @@ class Main():
                     if ps:
                         ps = ps[0]
                     else:
-                        logging.info(url,"---------这个url用json_page_re处理，结果为空")
+                        logging.info(url+"---------这个url用json_page_re处理，结果为空")
                         return
                 myjson = json.loads(ps)
                 linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
@@ -445,6 +444,7 @@ class Main():
                         bloom_url = one_data_dict["url"]
                         if self.executionType != 1:  # 增量爬虫
                             if bloom_url in self.bloom:
+                                logging.info(self.taskCode+"判断url在布隆过滤器成功")
                                 switch = True
                             else:
                                 self.bloom.add(bloom_url)
@@ -469,6 +469,7 @@ class Main():
                         endUrl = urljoin(self.start_url, ii)
                         if self.executionType != 1:  # 增量爬虫
                             if endUrl in self.bloom:
+                                logging.info(self.taskCode + "判断url在布隆过滤器成功")
                                 swtich=True
                             else:
                                 self.bloom.add(endUrl)
@@ -559,6 +560,7 @@ class Main():
             if not self.page_xpath:
                 for start_data in start_data_urlList:   #判断第一页
                     if start_data in self.bloom:
+                        logging.info(self.taskCode + "判断url在布隆过滤器成功")
                         switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(start_data)
@@ -577,6 +579,7 @@ class Main():
 
                         for second_content_url in second_content_urlList:
                             if second_content_url in self.bloom:
+                                logging.info(self.taskCode + "判断url在布隆过滤器成功")
                                 swtich2 = True
                             else:
                                 self.bloom.add(second_content_url)
@@ -590,6 +593,7 @@ class Main():
                     start_data_json = json.loads(start_data)
                     current_url = start_data_json["url"]
                     if current_url in self.bloom:
+                        logging.info(self.taskCode + "判断url在布隆过滤器成功")
                         switch = True  # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(current_url)
@@ -611,6 +615,7 @@ class Main():
                             second_content_data_json = json.loads(second_content_data)
                             current_url = second_content_data_json["url"]
                             if current_url in self.bloom:
+                                logging.info(self.taskCode + "判断url在布隆过滤器成功")
                                 swtich2 = True
                             else:
                                 self.bloom.add(current_url)
