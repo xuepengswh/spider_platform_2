@@ -117,7 +117,6 @@ class Main():
         }  # header
         self.storeQueue = "0"  # 只存储到mongodb
         self.timeout = 20  # 下载最长延时
-        self.selenium = None  # 是否使用selenium
         self.driver = None
         self.xpath_data = ""
         self.templateCode = ""
@@ -153,10 +152,11 @@ class Main():
         if "timeout" in tempData:
             self.timeout = tempData["timeout"]
         if "selenium" in tempData:
-            self.selenium = tempData["selenium"]
             opt = webdriver.ChromeOptions()
             opt.set_headless()
             self.driver = webdriver.Chrome(options=opt)
+        else:
+            self.driver = None
 
     def change_status_running(self):
         mongo_id = self.task_status["id"]  # 获取id值
@@ -248,7 +248,7 @@ class Main():
 
     def get_content(self, url, page_data):  # page_data如果有的话，是linelist页的数据
         """获取文本内容"""
-        if self.selenium:
+        if self.driver:
             response = self.selenium_download(url)
         else:
             response = self.download(url)
