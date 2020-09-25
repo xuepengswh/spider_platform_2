@@ -230,7 +230,10 @@ class Main():
 
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
         print(temp_data)
-        self.webType = temp_data["web_type"]
+        try:
+            self.webType = temp_data["web_type"]
+        except KeyError:
+            self.webType = temp_data["webType"]
 
         # 页面翻页设置
         self.start_url = temp_data["start_url"]
@@ -241,8 +244,10 @@ class Main():
             self.page_interval = 1
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
-        self.lineListXpath = temp_data["line_list_xpath"]
-
+        try:
+            self.lineListXpath = temp_data["line_list_xpath"]
+        except KeyError:
+            self.lineListXpath = temp_data["lineListXpath"]
 
         if "json_page_re" in temp_data:
             self.json_page_re = temp_data["json_page_re"]
@@ -311,7 +316,7 @@ class Main():
 
                         one_data_dict[key] = keystr
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
-                    
+
                     if swtich:
                         continue
                     end_data_list.append(one_data_dict)
@@ -360,6 +365,7 @@ class Main():
                 linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
                 for line in linelist:
                     one_data_dict = {}
+                    swtich = False
                     for key,keyxpath in self.page_xpath.items():
                         if key == "url_xpath" or key=="url":
                             content_url = jsonpath.jsonpath(line,keyxpath)
@@ -368,20 +374,20 @@ class Main():
                                 one_data_dict["url"] = endUrl
                                 continue
                             else:   #没有获取到url
-                                return
+                                swtich=True
 
                         keystr = jsonpath.jsonpath(line,keyxpath)
                         keystr = " ".join(keystr)
                         one_data_dict[key] = keystr
                     one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
+                    if swtich:
+                        continue
                     end_data_list.append(one_data_dict)
             return end_data_list
 
     #  post 的有关函数
     #根据url和datapost下载数据
     def post_download(self,url,data):
-        print(data)
-        print(self.headers)
         try:
             if self.proxy == "1":
                 proxy = self.get_proxy().strip()
@@ -423,16 +429,16 @@ class Main():
                     linelist = mytree.xpath(self.lineListXpath)
                     for line in linelist:
                         one_data_dict = {}
+                        swtich_url = False
                         for key, keyxpath in self.page_xpath.items():
                             if key == "url_xpath" or key == "url":
                                 content_url = line.xpath(keyxpath)
                                 if content_url:
                                     endUrl = urljoin(self.start_url, content_url[0])
                                     one_data_dict["url"] = endUrl
-
                                     continue
                                 else:  # 没有获取到url
-                                    return
+                                    swtich_url=True
 
                             keystr = line.xpath(keyxpath)
                             keystr = "".join(keystr)
@@ -441,6 +447,8 @@ class Main():
                                 keystr = urljoin(self.start_url, keystr)
 
                             one_data_dict[key] = keystr
+                        if swtich_url:
+                            continue
                         bloom_url = one_data_dict["url"]
                         if self.executionType != 1:  # 增量爬虫
                             if bloom_url in self.bloom:
@@ -491,6 +499,7 @@ class Main():
                     linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
                     for line in linelist:
                         one_data_dict = {}
+                        swtich_url = False
                         for key, keyxpath in self.page_xpath.items():
                             if key == "url_xpath" or key == "url":
                                 content_url = jsonpath.jsonpath(line,keyxpath)
@@ -499,7 +508,7 @@ class Main():
                                     one_data_dict["url"] = endUrl
                                     continue
                                 else:  # 没有获取到url
-                                    return
+                                    swtich_url=True
 
                             keystr = jsonpath.jsonpath(line,keyxpath)
                             keystr = "".join(keystr)
@@ -509,6 +518,8 @@ class Main():
 
                             one_data_dict[key] = keystr
                         one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                        if swtich_url:
+                            continue
                         self.redis.lpush(self.url_key_name, one_data_dict)
         else:
             for post_data in post_data_list:
@@ -516,12 +527,10 @@ class Main():
                 response = self.post_download(self.start_url,post_data)
                 if response[1] == 200:
                     ps = response[0]
-                    print(ps)
                     myjson = json.loads(ps)
                     linelist = jsonpath.jsonpath(myjson,self.lineListXpath) #url的列表
                     for ii in linelist:
                         endUrl = urljoin(self.start_url, ii)
-                        print(self.url_key_name)
                         self.redis.lpush(self.url_key_name, endUrl)
 
     def post_get_data(self):
@@ -544,9 +553,9 @@ class Main():
                     urlList = self.get_content_url_list(url)
                 else:
                     urlList = self.get_dongtai_content_url_list(url)
+                time.sleep(self.timeInterval)
 
                 for content_data in urlList:
-                    print(self.url_key_name)
                     self.redis.lpush(self.url_key_name, content_data)
         # 增量爬虫
         else:
@@ -555,6 +564,7 @@ class Main():
                 start_data_urlList = self.get_content_url_list(self.start_url)
             else:
                 start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
+            time.sleep(self.timeInterval)
 
             # 链接页只有url的情况下
             if not self.page_xpath:
@@ -565,7 +575,6 @@ class Main():
                     else:
                         self.bloom.add(start_data)
                         self.redis.lpush(self.url_key_name, start_data)
-                        print(self.url_key_name)
 
                 if not switch:  #判断第二页及以后页数
                     for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
@@ -628,9 +637,12 @@ class Main():
     def judge_status(self,task_data):
         task_data_json = json.loads(task_data)
         task_code = task_data_json["taskCode"]
-        status_key_name = self.redis_platform_address + ":status:"+task_code    #状态队列键值
         task_key_name = self.redis_platform_address + ":task"   #任务队列键值
+
+        status_key_name = self.redis_platform_address + ":status:" + task_code  # 状态队列键值
         status_data = self.redis.get(status_key_name)
+        print("status_key_name",status_key_name)
+        print("status_data",status_data)
         status_data = json.loads(status_data)
         status = status_data["status"]
 
