@@ -89,6 +89,7 @@ class Main():
         # 页面翻页设置
         self.start_url = ""
         self.second_page_value = ""
+        self.page_interval = ""
         self.end_page_value = ""
         self.url_type = ""
         self.lineListXpath = ""
@@ -113,7 +114,7 @@ class Main():
     def bloom_readfrom_db(self):
         tempFile = open("tempFile", "wb")
 
-        bloom_dict = self.myMongo["bloom"].find_one({"task_code": self.taskCode})
+        bloom_dict = self.myMongo["bloom"].find_one({"_id": self.taskCode})
 
         if bloom_dict: #如果有布隆过滤器,读取
             bloomData = bloom_dict["bloom_data"]
@@ -140,12 +141,12 @@ class Main():
         bloomFile = open("tempFile", "rb")      #打开保存数据的文件
         bloomData = bloomFile.read()
 
-        insert_data = {"task_code": self.taskCode, "bloom_data": bloomData}
+        insert_data = {"_id": self.taskCode, "bloom_data": bloomData}
 
-        bloom_dict = self.myMongo["bloom"].find_one({"task_code": self.taskCode})
+        bloom_dict = self.myMongo["bloom"].find_one({"_id": self.taskCode})
 
         if bloom_dict:  #更新布隆过滤器
-            self.myMongo["bloom"].update_one({"task_code": self.taskCode},{"$set": {"bloom_data":bloomData}})
+            self.myMongo["bloom"].update_one({"_id": self.taskCode},{"$set": {"bloom_data":bloomData}})
         else:
             self.myMongo["bloom"].insert_one(insert_data)
 
@@ -178,6 +179,8 @@ class Main():
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
+            if not codeStyle:
+                codeStyle = "utf-8"
             webData = response.content.decode(codeStyle, errors="ignore")
             return (webData, statusCode)
         except Exception as e:
@@ -233,9 +236,14 @@ class Main():
         temp_data = json.loads(taskData["templateInfo"])    #模板数据
         print(temp_data)
         self.webType = temp_data["web_type"]
+
         # 页面翻页设置
         self.start_url = temp_data["start_url"]
         self.second_page_value = int(temp_data["second_page_value"])
+        if "page_interval" in temp_data:
+            self.page_interval = int(temp_data["page_interval"])
+        else:
+            self.page_interval = 1
         self.end_page_value = int(temp_data["end_page_value"])
         self.url_type = temp_data["url_type"]
         self.lineListXpath = temp_data["line_list_xpath"]
@@ -387,6 +395,8 @@ class Main():
 
             statusCode = response.status_code
             codeStyle = cchardet.detect(response.content)["encoding"]
+            if not codeStyle:
+                codeStyle = "utf-8"
             webData = response.content.decode(codeStyle, errors="ignore")
             return (webData, statusCode)
         except Exception as e:
@@ -395,7 +405,7 @@ class Main():
 
     def get_post_data_list(self):
         data_list = []
-        for i in range(int(self.second_page_value), int(self.end_page_value)):
+        for i in range(int(self.second_page_value), int(self.end_page_value),int(self.page_interval)):
             current_page_data = self.post_data
             page_num = str(i)
             current_page_data[self.page_num_str] = page_num
