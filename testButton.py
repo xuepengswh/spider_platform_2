@@ -61,7 +61,6 @@ def get_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
     }
-    # response = requests.get(url,headers=headers)
     ps = requests.get(url, headers=headers,verify=False).content
     codeStyle = cchardet.detect(ps).get("encoding","utf-8")
     if not codeStyle:
@@ -71,18 +70,16 @@ def get_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个
 
     if url_xpath:   #链接页不只是提取链接
         lienlist = mytree.xpath(line_list_xpath)
-        print(len(lienlist))
         line_data = lienlist[0]
-        print(url_xpath)
         line_url = line_data.xpath(url_xpath)
-        print(line_url)
+        if not line_url:
+            line_data = lienlist[1]
+            line_url = line_data.xpath(url_xpath)
         end_url = urljoin(url, line_url[0])
         return end_url
 
     else:
-        print(111111111111)
         lienlist = mytree.xpath(line_list_xpath)
-        print(lienlist)
         if lienlist:
             line_url = lienlist[0]
             endUrl = urljoin(url, line_url)
