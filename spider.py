@@ -266,13 +266,7 @@ class Main():
             self.page_xpath = temp_data["page_xpath"]
         else:
             self.page_xpath = ""
-        if "headers" in temp_data:
-            self.headers = temp_data["headers"]
-        else:
-            self.headers = {
-            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
-                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
-        }
+
 
     # 根据url获取该页面的所有文本的链接或者链接字典
     def get_content_url_list(self, url):
@@ -411,7 +405,9 @@ class Main():
     def get_post_data_list(self):
         data_list = []
         for i in range(int(self.second_page_value), int(self.end_page_value),int(self.page_interval)):
-            current_page_data = self.post_data
+            current_page_data = {}
+            for key,value in self.post_data:
+                current_page_data[key] = self.post_data[key]
             page_num = str(i)
             current_page_data[self.page_num_str] = page_num
             data_list.append(current_page_data)
@@ -457,9 +453,11 @@ class Main():
                             else:
                                 self.bloom.add(bloom_url)
                                 one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                                print(one_data_dict)
                                 self.redis.lpush(self.url_key_name, one_data_dict)
                         else:
                             one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                            print(one_data_dict)
                             self.redis.lpush(self.url_key_name, one_data_dict)
 
                 if switch:  # 布隆过滤器判断有去重
@@ -481,8 +479,10 @@ class Main():
                                 swtich=True
                             else:
                                 self.bloom.add(endUrl)
+                                print(endUrl)
                                 self.redis.lpush(self.url_key_name, endUrl)
                         else:
+                            print(endUrl)
                             self.redis.lpush(self.url_key_name, endUrl)
 
                 if swtich:
@@ -520,6 +520,7 @@ class Main():
                         one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
                         if swtich_url:
                             continue
+                        print(one_data_dict)
                         self.redis.lpush(self.url_key_name, one_data_dict)
         else:
             for post_data in post_data_list:
@@ -531,6 +532,7 @@ class Main():
                     linelist = jsonpath.jsonpath(myjson,self.lineListXpath) #url的列表
                     for ii in linelist:
                         endUrl = urljoin(self.start_url, ii)
+                        print(endUrl)
                         self.redis.lpush(self.url_key_name, endUrl)
 
     def post_get_data(self):
@@ -556,6 +558,7 @@ class Main():
                 time.sleep(self.timeInterval)
 
                 for content_data in urlList:
+                    print(content_data)
                     self.redis.lpush(self.url_key_name, content_data)
         # 增量爬虫
         else:
@@ -574,6 +577,7 @@ class Main():
                         switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(start_data)
+                        print(start_data)
                         self.redis.lpush(self.url_key_name, start_data)
 
                 if not switch:  #判断第二页及以后页数
@@ -608,7 +612,7 @@ class Main():
                         self.bloom.add(current_url)
                         self.redis.lpush(self.url_key_name, start_data)
                         print(start_data)
-                        print(self.url_key_name)
+
 
                 if not switch:  # 判断第二页及以后页数
                     for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
@@ -628,6 +632,7 @@ class Main():
                                 swtich2 = True
                             else:
                                 self.bloom.add(current_url)
+                                print(current_url)
                                 self.redis.lpush(self.url_key_name, second_content_data)
                                 print(second_content_data)
                         if swtich2:
@@ -666,6 +671,8 @@ class Main():
         while True:
             task_key_name = self.redis_platform_address+":task"
             task_data_list = self.redis.lrange(task_key_name,0,100)
+            print(task_data_list)
+            time.sleep(5)
             for task_data in task_data_list:
                 swtich = self.judge_status(task_data)   # 更新self.taskCode
 
