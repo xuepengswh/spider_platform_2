@@ -11,14 +11,16 @@ import jsonpath
 
 app = Flask(__name__)
 
-def get_data(url, data):
+def get_data(url, data):    #文本页获取文本数据
     print(url)
     # 提取xpath
     tempData = data["xpaths"]
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-    }
+    if "headers" in tempData:
+        headers = tempData["headers"]
+    else:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        }
     ps = requests.get(url,headers=headers,verify=False).content
     codeStyle = cchardet.detect(ps).get("encoding","utf-8")
     if not codeStyle:
@@ -56,11 +58,14 @@ def get_data(url, data):
     print(endData)
     return endData
 
-def get_one_url(line_list_xpath, start_url,url_xpath):    #链接页获取一个文本链接
+def get_one_url(line_list_xpath, start_url,url_xpath,headers):    #链接页获取一个文本链接
     url = start_url
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-    }
+    if headers:
+        headers = headers
+    else:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        }
     ps = requests.get(url, headers=headers,verify=False).content
     codeStyle = cchardet.detect(ps).get("encoding","utf-8")
     if not codeStyle:
@@ -202,6 +207,7 @@ def hello_world():
     templateInfo_data = data
 
     json_page_re = templateInfo_data.get("json_page_re")
+    headers = templateInfo_data.get("headers")
 
     start_url = templateInfo_data["start_url"]
     line_list_xpath = templateInfo_data["line_list_xpath"]
@@ -212,7 +218,7 @@ def hello_world():
 
     print(templateInfo_data["web_type"],"------------------------")
     if templateInfo_data["web_type"] == 0:
-        url = get_one_url(line_list_xpath, start_url, url_xpath)
+        url = get_one_url(line_list_xpath, start_url, url_xpath,headers=headers)
     elif templateInfo_data["web_type"] == 1:
         url = get_dongtai_one_url(line_list_xpath, start_url, url_xpath,json_page_re)
 
@@ -227,6 +233,7 @@ def hello_world():
         page_num_str = templateInfo_data["page_num_str"]
         first_page_num = templateInfo_data["second_page_value"]
         url = get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num)
+
 
     if url:
         end_content = get_data(url, templateInfo_data)
