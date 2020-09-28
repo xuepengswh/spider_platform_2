@@ -8,6 +8,8 @@ import json
 from urllib.parse import urljoin
 import cchardet
 import jsonpath
+from urllib import parse
+
 
 app = Flask(__name__)
 
@@ -159,21 +161,9 @@ def get_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_st
 def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num):
     url = start_url
     headers = {
-		"Host":"www.chinatax.gov.cn",
-		"Content-Length":"61",
-		"Accept":"application/json, text/javascript, */*; q=0.01",
-		"X-Requested-With":"XMLHttpRequest",
 		"User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-		"Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
-		"Origin":"http://www.chinatax.gov.cn",
-		"Referer":"http://www.chinatax.gov.cn/chinatax/n810341/n810825/index.html?title=",
-		"Accept-Encoding":"gzip, deflate",
-		"Accept-Language":"zh-CN,zh;q=0.9",
-		"Cookie":"yfx_c_g_u_id_10003701=_ck20081015092014007101321567515; yfx_f_l_v_t_10003701=f_t_1597043360399__r_t_1600411258438__v_t_1600411258438__r_c_5; _Jo0OQK=37AFAD02C9B8FDBF38965B129D738A2069A41BDF4EE142E4E0F1575C056C78452A10B253E9D55898D300CBE5AAF4B9ABF2EEC992AA05909E841B54F7EE1A53A474B34275DAD340EB4DDFFF13AA80B4DD4EFFFF13AA80B4DD4EF78DDF7DE4DEBA64AB39E6D4B415570C1GJ1Z1fQ==; CPS_SESSION=3851AF0CC3C48C245EC8E340B9CE3961",
-		"Connection":"keep-alive"
 	}
     post_data[page_num_str] = int(first_page_num)
-    # print(post_data)
     ps = requests.post(url, headers=headers, data=post_data).content
     codeStyle = cchardet.detect(ps).get("encoding","utf-8")
     if not codeStyle:
@@ -185,16 +175,46 @@ def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_n
         line_data = line_list[0]
         # line_url = line_data.xpath(url_xpath)
         print(line_data)
-
         line_url = jsonpath.jsonpath(line_data, url_xpath)
-        print(line_url)
         end_url = urljoin(url, line_url[0])
         return end_url
     else:
         content_url_list = jsonpath.jsonpath(myjson,line_list_xpath)
         content_url = content_url_list[0]
+        content_url = parse.unquote(content_url)
         content_url = urljoin(start_url, content_url)
         return content_url
+
+def get_url_change_post_url(line_list_xpath, start_url, url_xpath,post_data,end_page_num,first_page_num,page_interval):
+    second_page_num = int(first_page_num)+int(page_interval)-1
+    if int(second_page_num)>int(end_page_num):
+        second_page_num = end_page_num
+
+    url = start_url.replace("%d",str(first_page_num)).replace("%p",str(second_page_num))
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+    }
+    ps = requests.post(url, headers=headers, data=post_data).content
+    codeStyle = cchardet.detect(ps).get("encoding", "utf-8")
+    if not codeStyle:
+        codeStyle = "utf-8"
+    ps = ps.decode(codeStyle, errors="ignore")
+    mytree = lxml.etree.HTML(ps)
+    if url_xpath:
+        lienlist = mytree.xpath(line_list_xpath)
+        line_data = lienlist[0]
+        line_url = line_data.xpath(url_xpath)
+        line_url = parse.unquote(line_url[0])
+        end_url = urljoin(url, line_url)
+        return end_url
+    else:
+        content_url_list = mytree.xpath(line_list_xpath)
+        print(content_url_list)
+        content_url = content_url_list[0]
+        content_url = parse.unquote(content_url)
+        content_url = urljoin(start_url, content_url)
+        return content_url
+
 
 @app.route('/test_template', methods=['POST'])
 def hello_world():
@@ -228,12 +248,17 @@ def hello_world():
         page_num_str = templateInfo_data["page_num_str"]
         first_page_num = templateInfo_data["second_page_value"]
         url = get_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num)
-    else:
+    elif templateInfo_data["web_type"] == 3:
         post_data = templateInfo_data["post"]
         page_num_str = templateInfo_data["page_num_str"]
         first_page_num = templateInfo_data["second_page_value"]
         url = get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num)
-
+    else:
+        post_data = templateInfo_data["post"]
+        end_page_num = templateInfo_data["end_page_value"]
+        first_page_num = templateInfo_data["second_page_value"]
+        page_interval = templateInfo_data["page_interval"]
+        url = get_url_change_post_url(line_list_xpath, start_url, url_xpath,post_data,end_page_num,first_page_num,page_interval)
 
     if url:
         end_content = get_data(url, templateInfo_data)
