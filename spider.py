@@ -410,7 +410,7 @@ class Main():
             data_list.append(current_page_data)
         return data_list
 
-    def post_not_json(self,post_data_list):
+    def post_html(self,post_data_list):
         if self.page_xpath:
             switch = False
             for post_data in post_data_list:
@@ -534,11 +534,11 @@ class Main():
                         print(endUrl)
                         self.redis.lpush(self.url_key_name, endUrl)
 
-    def post_get_data(self):
+    def post_start(self):
         """post_data,page_num_str"""
         post_data_list = self.get_post_data_list()  #构造post请求数据
-        if self.webType == 2:  #post，不是json类型
-            self.post_not_json(post_data_list)
+        if self.webType == 2:  #post，html类型
+            self.post_html(post_data_list)
         else:       # post  json类型
             self.post_json(post_data_list)
 
@@ -680,13 +680,14 @@ class Main():
                     self.taskCode = json.loads(task_data)["taskCode"]
                     self.change_outqueue_num()      #更改outQueue值为1
                     self.update_attr()  # 更新属性
+
                     if self.executionType != 1:    #增量爬虫      更新布隆过滤器      executionType
                         self.bloom_readfrom_db()
 
                     if self.post_data or type(self.post_data) == dict:
-                        self.post_get_data()        #处理post
+                        self.post_start()        #处理post
                     else:
-                        self.spider_start()     #处理静态和json动态
+                        self.spider_start()     #处理html和json
 
 
 
