@@ -317,7 +317,7 @@ class Main():
             return end_data_list
 
     # json  根据 url获取该  json  页面所有的链接以及其他数据
-    def get_dongtai_content_url_list(self, url):
+    def get_json_content_url_list(self, url):
         """获取动态链接页内容"""
         if not self.page_xpath:
             endUrlList = []
@@ -542,7 +542,7 @@ class Main():
         else:       # post  json类型
             self.post_json(post_data_list)
 
-    #静态和json的处理，不包含post
+    #html和json的处理，不包含post
     def spider_start(self):
         # 存量爬虫
         if self.executionType == 1:
@@ -553,7 +553,7 @@ class Main():
                 if self.webType == 0:
                     urlList = self.get_content_url_list(url)
                 else:
-                    urlList = self.get_dongtai_content_url_list(url)
+                    urlList = self.get_json_content_url_list(url)
                 time.sleep(self.timeInterval)
 
                 for content_data in urlList:
@@ -565,7 +565,7 @@ class Main():
             if self.webType == 0:
                 start_data_urlList = self.get_content_url_list(self.start_url)
             else:
-                start_data_urlList = self.get_dongtai_content_url_list(self.start_url)
+                start_data_urlList = self.get_json_content_url_list(self.start_url)
             time.sleep(self.timeInterval)
 
             # 链接页只有url的情况下
@@ -587,7 +587,7 @@ class Main():
                         if self.webType==0:
                             second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                         else:
-                            second_content_urlList = self.get_dongtai_content_url_list(theUrl)  #json格式的每一页的文本链接列表
+                            second_content_urlList = self.get_json_content_url_list(theUrl)  #json格式的每一页的文本链接列表
 
                         for second_content_url in second_content_urlList:
                             if second_content_url in self.bloom:
@@ -621,7 +621,7 @@ class Main():
                         if self.webType==0:
                             second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
                         else:
-                            second_content_urlList = self.get_dongtai_content_url_list(theUrl)  #json格式的每一页的文本链接列表
+                            second_content_urlList = self.get_json_content_url_list(theUrl)  #json格式的每一页的文本链接列表
 
                         for second_content_data in second_content_urlList:
                             second_content_data_json = json.loads(second_content_data)
