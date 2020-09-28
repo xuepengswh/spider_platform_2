@@ -405,11 +405,8 @@ class Main():
     def get_post_data_list(self):
         data_list = []
         for i in range(int(self.second_page_value), int(self.end_page_value),int(self.page_interval)):
-            current_page_data = {}
-            for key,value in self.post_data:
-                current_page_data[key] = self.post_data[key]
-            page_num = str(i)
-            current_page_data[self.page_num_str] = page_num
+            current_page_data = self.post_data.copy()
+            current_page_data[self.page_num_str] = str(i)
             data_list.append(current_page_data)
         return data_list
 
@@ -487,6 +484,8 @@ class Main():
 
                 if swtich:
                     break
+        if self.executionType != 1:  # 增量爬虫
+            self.bloom_writeto_db()
 
     def post_json(self,post_data_list):
         if self.page_xpath:
