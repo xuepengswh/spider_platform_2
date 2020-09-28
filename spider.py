@@ -3,6 +3,7 @@ import lxml.etree
 import re
 import json
 from urllib.parse import urljoin
+from urllib import parse
 import jsonpath
 import time
 import redis
@@ -11,6 +12,7 @@ import cchardet
 import configparser
 import pymongo
 import logging
+
 logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.DEBUG,
                     filename="spider925.log")
@@ -594,7 +596,9 @@ class Main():
                             if key == "url_xpath" or key == "url":
                                 content_url = line.xpath(keyxpath)
                                 if content_url:
-                                    endUrl = urljoin(self.start_url, content_url[0])
+                                    content_url = content_url[0]
+                                    content_url = parse.unquote(content_url)
+                                    endUrl = urljoin(self.start_url, content_url)
                                     one_data_dict["url"] = endUrl
                                     continue
                                 else:  # 没有获取到url
@@ -637,7 +641,8 @@ class Main():
                     mytree = lxml.etree.HTML(ps)
                     linelist = mytree.xpath(self.lineListXpath)
                     for ii in linelist:
-                        endUrl = urljoin(self.start_url, ii)
+                        content_url = parse.unquote(ii)
+                        endUrl = urljoin(self.start_url, content_url)
                         if self.executionType != 1:  # 增量爬虫
                             if endUrl in self.bloom:
                                 logging.info(self.taskCode + "判断url在布隆过滤器成功")
