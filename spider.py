@@ -199,7 +199,7 @@ class Main():
 
         taskData = json.loads(status_data)
 
-        self.executionType = taskData["executionType"]
+        self.executionType = int(taskData["executionType"])
         self.taskCode = taskData["taskCode"]
         self.timeInterval = taskData["timeInterval"]
         self.url_key_name = self.redis_platform_address+":url:" + self.taskCode
