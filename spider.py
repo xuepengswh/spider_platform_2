@@ -490,6 +490,8 @@ class Main():
     def post_json(self,post_data_list):
         if self.page_xpath:
             for post_data in post_data_list:
+                swtich = False  #判断这一页是否有布隆过滤器去重
+
                 time.sleep(self.timeInterval)
                 response = self.post_download(self.start_url,post_data)
                 if response[1] == 200:
@@ -497,8 +499,9 @@ class Main():
                     myjson = json.loads(ps)
                     linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
                     for line in linelist:
+                        # 每一行的操作
                         one_data_dict = {}
-                        swtich_url = False
+                        swtich_url = False      #判断一行没有获取到url的情况，直接跳过
                         for key, keyxpath in self.page_xpath.items():
                             if key == "url_xpath" or key == "url":
                                 content_url = jsonpath.jsonpath(line,keyxpath)
@@ -516,13 +519,29 @@ class Main():
                                 keystr = urljoin(self.start_url, keystr)
 
                             one_data_dict[key] = keystr
-                        one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
-                        if swtich_url:
+
+                        if swtich_url:  #这一行没有url，跳过这一行
                             continue
-                        print(one_data_dict)
-                        self.redis.lpush(self.url_key_name, one_data_dict)
+
+                        if self.executionType!=1:   #增量爬虫
+                            insert_url = one_data_dict["url"]
+                            if insert_url in self.bloom:
+                                swtich=True
+                            else:
+                                self.bloom.add(insert_url)
+                                one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                                print(one_data_dict)
+                                self.redis.lpush(self.url_key_name, one_data_dict)
+                        else:
+                            one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                            print(one_data_dict)
+                            self.redis.lpush(self.url_key_name, one_data_dict)
+                if swtich:
+                    break
         else:
             for post_data in post_data_list:
+                swtich = False
+
                 time.sleep(self.timeInterval)
                 response = self.post_download(self.start_url,post_data)
                 if response[1] == 200:
@@ -531,8 +550,18 @@ class Main():
                     linelist = jsonpath.jsonpath(myjson,self.lineListXpath) #url的列表
                     for ii in linelist:
                         endUrl = urljoin(self.start_url, ii)
-                        print(endUrl)
-                        self.redis.lpush(self.url_key_name, endUrl)
+                        if self.executionType != 1:  # 增量爬虫
+                            if endUrl in self.bloom:
+                                swtich=True
+                            else:
+                                self.bloom.add(endUrl)
+                                print(endUrl)
+                                self.redis.lpush(self.url_key_name, endUrl)
+                        else:
+                            print(endUrl)
+                            self.redis.lpush(self.url_key_name, endUrl)
+                if swtich:
+                    break
 
     def post_start(self):
         """post_data,page_num_str"""
@@ -639,6 +668,8 @@ class Main():
             self.bloom_writeto_db()  # 布隆过滤器保存到数据库
 
     def judge_status(self,task_data):
+        """处理周期执行任务，判断周期执行的任务状态，在暂停和停止状态下的处理情况"""
+
         task_data_json = json.loads(task_data)
         task_code = task_data_json["taskCode"]
         task_key_name = self.redis_platform_address + ":task"   #任务队列键值
@@ -688,7 +719,6 @@ class Main():
                         self.post_start()        #处理post
                     else:
                         self.spider_start()     #处理html和json
-
 
 
 if __name__ == "__main__":
