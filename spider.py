@@ -563,13 +563,118 @@ class Main():
                 if swtich:
                     break
 
+    def get_post_url_list(self):
+        """针对wen_type为4，即post的url变化但是post  data不变的情况
+        http://www.nhsa.gov.cn/module/web/jpage/dataproxy.jsp?startrecord=%d&endrecord=%p&perpage=15
+        """
+        end_url_list = []
+        for first_num in range(int(self.second_page_value),int(self.end_page_value),int(self.page_interval)):
+            second_num = first_num+int(self.page_interval)-1
+            if second_num>int(self.end_page_value):
+                second_num = int(self.end_page_value)
+            post_url = self.start_url.replace("%d",str(first_num)).replace("%p",str(second_num))
+            end_url_list.append(post_url)
+        return end_url_list
+
+    def post_url_change(self):
+        if self.page_xpath:
+            switch = False
+            url_list = self.get_post_url_list()
+            for url in url_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(url,self.post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    mytree = lxml.etree.HTML(ps)
+                    linelist = mytree.xpath(self.lineListXpath)
+                    for line in linelist:
+                        one_data_dict = {}
+                        swtich_url = False
+                        for key, keyxpath in self.page_xpath.items():
+                            if key == "url_xpath" or key == "url":
+                                content_url = line.xpath(keyxpath)
+                                if content_url:
+                                    endUrl = urljoin(self.start_url, content_url[0])
+                                    one_data_dict["url"] = endUrl
+                                    continue
+                                else:  # 没有获取到url
+                                    swtich_url=True
+
+                            keystr = line.xpath(keyxpath)
+                            keystr = "".join(keystr)
+
+                            if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
+                                keystr = urljoin(self.start_url, keystr)
+
+                            one_data_dict[key] = keystr
+                        if swtich_url:
+                            continue
+                        bloom_url = one_data_dict["url"]
+                        if self.executionType != 1:  # 增量爬虫
+                            if bloom_url in self.bloom:
+                                logging.info(self.taskCode+"判断url在布隆过滤器成功")
+                                switch = True
+                            else:
+                                self.bloom.add(bloom_url)
+                                one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                                print(one_data_dict)
+                                self.redis.lpush(self.url_key_name, one_data_dict)
+                        else:
+                            one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
+                            print(one_data_dict)
+                            self.redis.lpush(self.url_key_name, one_data_dict)
+
+                if switch:  # 布隆过滤器判断有去重
+                    break
+        else:
+            swtich = False
+            url_list = self.get_post_url_list()
+            for url in url_list:
+                time.sleep(self.timeInterval)
+                response = self.post_download(url,self.post_data)
+                if response[1] == 200:
+                    ps = response[0]
+                    mytree = lxml.etree.HTML(ps)
+                    linelist = mytree.xpath(self.lineListXpath)
+                    for ii in linelist:
+                        endUrl = urljoin(self.start_url, ii)
+                        if self.executionType != 1:  # 增量爬虫
+                            if endUrl in self.bloom:
+                                logging.info(self.taskCode + "判断url在布隆过滤器成功")
+                                swtich=True
+                            else:
+                                self.bloom.add(endUrl)
+                                print(endUrl)
+                                self.redis.lpush(self.url_key_name, endUrl)
+                        else:
+                            print(endUrl)
+                            self.redis.lpush(self.url_key_name, endUrl)
+
+                if swtich:
+                    break
+        if self.executionType != 1:  # 增量爬虫
+            self.bloom_writeto_db()
+
+
+
+
+        url_list = self.get_post_url_list()
+        for url in url_list:
+            response = self.post_download(url,self.post_data)
+            if response[0]==200:
+                ps = response[1]
+
+
     def post_start(self):
         """post_data,page_num_str"""
-        post_data_list = self.get_post_data_list()  #构造post请求数据
         if self.webType == 2:  #post，html类型
+            post_data_list = self.get_post_data_list()  # 构造post请求数据
             self.post_html(post_data_list)
-        else:       # post  json类型
+        elif self.webType == 3: # post  json类型
+            post_data_list = self.get_post_data_list()  # 构造post请求数据
             self.post_json(post_data_list)
+        else:   #web_type==4,url变化但是postdata不变的情况
+            self.post_url_change()
 
     #html和json的处理，不包含post
     def spider_start(self):
