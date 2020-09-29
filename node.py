@@ -111,10 +111,7 @@ class Main():
         self.timeInterval = 0  # 时间间隔
         self.thread_num = 1  # 线程数
         self.proxy = "0"  # 代理
-        self.header = {
-            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
-                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
-        }  # header
+        self.headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36" }  # header
         self.storeQueue = "0"  # 只存储到mongodb
         self.timeout = 20  # 下载最长延时
         self.driver = None
@@ -123,7 +120,8 @@ class Main():
 
     def updata_attr(self):
         # self.task_code  在start 和get_task_status函数中更新
-        tempData = json.loads(self.task_status["templateInfo"])
+        tempData = self.task_status["templateInfo"]
+        tempData = json.loads(tempData)
 
         # 需要存储数据
         self.webSite = self.task_status["webSiteName"]
@@ -148,7 +146,9 @@ class Main():
 
         # 更新模板设置状态
         if "headers" in tempData:
-            self.header = tempData["header"]
+            self.headers = tempData["header"]
+        else:
+            self.headers = {  "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36"  }
         if "timeout" in tempData:
             self.timeout = tempData["timeout"]
         if "selenium" in tempData:
@@ -216,8 +216,9 @@ class Main():
         return current_time
 
     def insert_data(self, data):
-        data = self.image_fujian_deal(data)
-        # data = self.clean_data(data)
+        if "html_content" in data:  #如果data有html_content字段，处理
+            data = self.image_fujian_deal(data)
+
         tempData = json.loads(self.task_status["templateInfo"])
         if "constant_filed" in tempData:
             for key,value in tempData["constant_filed"].items():    # 增加 永久存储字段
@@ -237,7 +238,6 @@ class Main():
     def get_url_key_name(self):
         url_key_find = self.redis_platform_address+":url:*"
         url_key_name_list = self.redis.keys(url_key_find)
-
         return url_key_name_list
 
     def get_task_status(self, url_key_name):
@@ -307,7 +307,7 @@ class Main():
                     endData[key] = keystr
                     continue
                 else:
-                    keystr = " ".join(keystr)
+                    keystr = "++__))((".join(keystr)
                 keystr = keystr.replace("\n", " ").replace("\t", " ").replace("\r", " ")
                 keystr = keystr.strip()
 
@@ -347,11 +347,11 @@ class Main():
             if self.proxy == "1":  # 使用代理
                 proxy = self.get_proxy().strip()
                 proxies={'https':proxy}  # 获取代理
-                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.header,verify=False)
+                response = requests.get(url, proxies=proxies, timeout=self.timeout, headers=self.headers,verify=False)
                 logging.info(url)
                 logging.info("以使用代理")
             else:  # 不适用代理
-                response = requests.get(url, timeout=self.timeout, headers=self.header,verify=False)
+                response = requests.get(url, timeout=self.timeout, headers=self.headers,verify=False)
             code_style = cchardet.detect(response.content)["encoding"]
             if not code_style:
                 code_style = "utf-8"
