@@ -270,54 +270,47 @@ class Main():
         else:
             self.page_xpath = ""
 
+    def deal_html_page_data(self,base_url,line,swtich=False):   #处理链接页的数据
+        if self.page_xpath:
+            one_data_dict = {}
+            for key, keyxpath in self.page_xpath.items():
+                if key == "url_xpath" or key == "url":
+                    content_url = line.xpath(keyxpath)
+                    if content_url:
+                        endUrl = urljoin(base_url, content_url[0])
+                        one_data_dict["url"] = endUrl
+                        continue
+                    else:  # 没有获取到url
+                        swtich = True
+
+                keystr = line.xpath(keyxpath)
+                keystr = "".join(keystr)
+
+                if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
+                    keystr = urljoin(base_url, keystr)
+
+                one_data_dict[key] = keystr
+            end_data = json.dumps(one_data_dict)  # 将字典转化为字符串
+
+        else:
+            end_data = urljoin(base_url,line)
+        return end_data,swtich
 
     # 根据url获取该页面的所有文本的链接或者链接字典
     def get_content_url_list(self, url):
         """获取静态链接页内容"""
-        if not self.page_xpath:
-            endUrlList = []
-            response = self.download(url)
-            if response[1] == 200:
-                ps = response[0]
-                mytree = lxml.etree.HTML(ps)
-                linelist = mytree.xpath(self.lineListXpath)
-                for ii in linelist:
-                    endUrl = urljoin(url, ii)
-                    endUrlList.append(endUrl)
-            return endUrlList
-        else:
-            end_data_list = []
-            response = self.download(url)
-            if response[1] == 200:
-                ps = response[0]
-                mytree = lxml.etree.HTML(ps)
-                linelist = mytree.xpath(self.lineListXpath)
-                for line in linelist:
-                    one_data_dict = {}
-                    swtich = False
-                    for key,keyxpath in self.page_xpath.items():
-                        if key == "url_xpath" or key=="url":
-                            content_url = line.xpath(keyxpath)
-                            if content_url:
-                                endUrl = urljoin(url, content_url[0])
-                                one_data_dict["url"] = endUrl
-                                continue
-                            else:   #没有获取到url
-                                swtich=True
-
-                        keystr = line.xpath(keyxpath)
-                        keystr = "".join(keystr)
-
-                        if keystr =="images" or keystr == "images_xpath":   #对图片的链接进行处理
-                            keystr = urljoin(url,keystr)
-
-                        one_data_dict[key] = keystr
-                    one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
-
-                    if swtich:
-                        continue
-                    end_data_list.append(one_data_dict)
-            return end_data_list
+        """获取静态链接页内容"""
+        endUrlList = []
+        response = self.download(url)
+        if response[1] == 200:
+            ps = response[0]
+            mytree = lxml.etree.HTML(ps)
+            linelist = mytree.xpath(self.lineListXpath)
+            for line in linelist:
+                dealed_page_data, swtich = self.deal_html_page_data(url, line)
+                if dealed_page_data and not swtich:  # swtich处理链接页，有一行没有获取到链接的情况
+                    endUrlList.append(dealed_page_data)
+        return endUrlList
 
     # json  根据 url获取该  json  页面所有的链接以及其他数据
     def get_json_content_url_list(self, url):
