@@ -217,13 +217,7 @@ class Main():
             self.proxy_url = taskData["proxyProductValue"]
         else:
             self.proxy_url = ""
-        if "header" in taskData:
-            self.headers = taskData["headers"]
-        else:
-            self.headers = {
-            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; '
-                           'Windows NT 6.1; Win64; x64; Trident/5.0)'),
-        }  # header
+
         if "timeout" in taskData:
             self.timeout = taskData["timeout"]
         else:
@@ -250,6 +244,13 @@ class Main():
             self.lineListXpath = temp_data["line_list_xpath"]
         except KeyError:
             self.lineListXpath = temp_data["lineListXpath"]
+
+        if "headers" in temp_data:
+            self.headers = temp_data["headers"]
+        else:
+            self.headers = {
+            'User-Agent': ('Mozilla/5.0 (compatible; MSIE 9.0; ''Windows NT 6.1; Win64; x64; Trident/5.0)'),
+        }  # header
 
         if "json_page_re" in temp_data:
             self.json_page_re = temp_data["json_page_re"]
@@ -399,6 +400,7 @@ class Main():
             if not codeStyle:
                 codeStyle = "utf-8"
             webData = response.content.decode(codeStyle, errors="ignore")
+            print(webData)
             return (webData, statusCode)
         except Exception as e:
             print(e)
