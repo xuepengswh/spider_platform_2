@@ -107,7 +107,6 @@ class Main():
         self.timeInterval = 0  # 时间间隔
         self.post_data = ""
         self.page_num_str = ""
-
     # 从数据库读布隆过滤器数据
     def bloom_readfrom_db(self):
         tempFile = open("tempFile", "wb")
@@ -296,7 +295,49 @@ class Main():
             end_data = urljoin(base_url,line)
         return end_data,swtich
 
+    def deal_json_page_data(self,base_url,line,swtich=False):
+        if self.page_xpath:
+            one_data_dict = {}
+            swtich = False
+            for key, keyxpath in self.page_xpath.items():
+                if key == "url_xpath" or key == "url":
+                    content_url = jsonpath.jsonpath(line, keyxpath)
+                    if content_url:
+                        endUrl = urljoin(base_url, content_url[0])
+                        one_data_dict["url"] = endUrl
+                        continue
+                    else:  # 没有获取到url
+                        swtich = True
+
+                keystr = jsonpath.jsonpath(line, keyxpath)
+                keystr = " ".join(keystr)
+                one_data_dict[key] = keystr
+            end_data = json.dumps(one_data_dict)  # 将字典转化为字符串
+        else:
+            end_data = urljoin(base_url, line)
+        return end_data,swtich
     # 根据url获取该页面的所有文本的链接或者链接字典
+
+    def judge_url_in_bloom(self,judge_data):
+        """判断url或字典里的url是否在布隆过滤器，不在的话加入布隆过滤器,并将数据加入redis"""
+        if judge_data.starstwith("{"):
+            insert_url = judge_data["url"]
+            if insert_url in self.bloom:
+                return True
+            else:
+                self.bloom.add(insert_url)
+                print(judge_data)
+                self.redis.lpush(self.url_key_name, judge_data)
+                return False
+        else:
+            if judge_data in self.bloom:
+                return True
+            else:
+                self.bloom.add(judge_data)
+                print(judge_data)
+                self.redis.lpush(self.url_key_name, judge_data)
+                return False
+
     def get_content_url_list(self, url):
         """获取静态链接页内容"""
         """获取静态链接页内容"""
@@ -312,68 +353,30 @@ class Main():
                     endUrlList.append(dealed_page_data)
         return endUrlList
 
+
     # json  根据 url获取该  json  页面所有的链接以及其他数据
     def get_json_content_url_list(self, url):
         """获取动态链接页内容"""
-        if not self.page_xpath:
-            endUrlList = []
-            response = self.download(url)
-            if response[1] == 200:
-                ps = response[0]
-                ps = ps.replace("\n","")    #一些有换行符
-                if self.json_page_re:
-                    ps = re.compile(self.json_page_re).findall(ps)
-                    if ps:
-                        ps = ps[0]
-                    else:
-                        logging.info(url+"---------这个url用json_page_re处理，结果为空")
-                        return
-                try:
-                    myjson = json.loads(ps)
-                except:
-                    logging.info(url+"---------这个url获取的网页数据加载为json时候出错")
+        end_data_list = []
+        response = self.download(url)
+        if response[1] == 200:
+            ps = response[0]
+            ps = ps.replace("\n", "")
+            if self.json_page_re:
+                ps = re.compile(self.json_page_re).findall(ps)
+                if ps:
+                    ps = ps[0]
+                else:
+                    logging.info(url + "---------这个url用json_page_re处理，结果为空")
                     return
-                linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
-                for ii in linelist:
-                    endUrl = urljoin(url, ii)
-                    endUrlList.append(endUrl)
-            return endUrlList
-        else:
-            end_data_list = []
-            response = self.download(url)
-            if response[1] == 200:
-                ps = response[0]
-                ps = ps.replace("\n","")
-                if self.json_page_re:
-                    ps = re.compile(self.json_page_re).findall(ps)
-                    if ps:
-                        ps = ps[0]
-                    else:
-                        logging.info(url+"---------这个url用json_page_re处理，结果为空")
-                        return
-                myjson = json.loads(ps)
-                linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
-                for line in linelist:
-                    one_data_dict = {}
-                    swtich = False
-                    for key,keyxpath in self.page_xpath.items():
-                        if key == "url_xpath" or key=="url":
-                            content_url = jsonpath.jsonpath(line,keyxpath)
-                            if content_url:
-                                endUrl = urljoin(url, content_url[0])
-                                one_data_dict["url"] = endUrl
-                                continue
-                            else:   #没有获取到url
-                                swtich=True
-
-                        keystr = jsonpath.jsonpath(line,keyxpath)
-                        keystr = " ".join(keystr)
-                        one_data_dict[key] = keystr
-                    one_data_dict = json.dumps(one_data_dict)  #将字典转化为字符串
-                    if swtich:
-                        continue
-                    end_data_list.append(one_data_dict)
-            return end_data_list
+            myjson = json.loads(ps)
+            linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
+            for line in linelist:
+                one_data_dict, swtich = self.deal_json_page_data(url, line)
+                if swtich:
+                    continue
+                end_data_list.append(one_data_dict)
+        return end_data_list
 
     #  post 的有关函数
     #根据url和datapost下载数据
@@ -408,140 +411,50 @@ class Main():
         return data_list
 
     def post_html(self,post_data_list):
-        if self.page_xpath:
-            switch = False
-            for post_data in post_data_list:
-                time.sleep(self.timeInterval)
-                response = self.post_download(self.start_url,post_data)
-                if response[1] == 200:
-                    ps = response[0]
-                    mytree = lxml.etree.HTML(ps)
-                    linelist = mytree.xpath(self.lineListXpath)
-                    for line in linelist:
-                        one_data_dict,swtich_url = self.deal_html_page_data(self.start_url, line)
-                        if swtich_url:
-                            continue
+        switch = False
+        for post_data in post_data_list:
+            time.sleep(self.timeInterval)
+            response = self.post_download(self.start_url, post_data)
+            if response[1] == 200:
+                ps = response[0]
+                mytree = lxml.etree.HTML(ps)
+                linelist = mytree.xpath(self.lineListXpath)
+                for line in linelist:
+                    one_data_dict, swtich_url = self.deal_html_page_data(self.start_url, line)
+                    if swtich_url:
+                        continue
+                    judge_answer = self.judge_url_in_bloom(one_data_dict)
+                    if self.executionType != 1 and judge_answer:  # 增量爬虫
+                        switch = True
 
-                        bloom_url = one_data_dict["url"]
-                        if self.executionType != 1:  # 增量爬虫
-                            if bloom_url in self.bloom:
-                                logging.info(self.taskCode+"判断url在布隆过滤器成功")
-                                switch = True
-                            else:
-                                self.bloom.add(bloom_url)
-                                one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
-                                print(one_data_dict)
-                                self.redis.lpush(self.url_key_name, one_data_dict)
-                        else:
-                            one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
-                            print(one_data_dict)
-                            self.redis.lpush(self.url_key_name, one_data_dict)
+            if switch:  # 布隆过滤器判断有去重
+                break
 
-                if switch:  # 布隆过滤器判断有去重
-                    break
-        else:
-            swtich = False
-            for post_data in post_data_list:
-                time.sleep(self.timeInterval)
-                response = self.post_download(self.start_url,post_data)
-                if response[1] == 200:
-                    ps = response[0]
-                    mytree = lxml.etree.HTML(ps)
-                    linelist = mytree.xpath(self.lineListXpath)
-                    for ii in linelist:
-                        endUrl,placeholder = self.deal_html_page_data(self.start_url,ii)
-                        if self.executionType != 1:  # 增量爬虫
-                            if endUrl in self.bloom:
-                                logging.info(self.taskCode + "判断url在布隆过滤器成功")
-                                swtich=True
-                            else:
-                                self.bloom.add(endUrl)
-                                print(endUrl)
-                                self.redis.lpush(self.url_key_name, endUrl)
-                        else:
-                            print(endUrl)
-                            self.redis.lpush(self.url_key_name, endUrl)
-
-                if swtich:
-                    break
         if self.executionType != 1:  # 增量爬虫
             self.bloom_writeto_db()
 
     def post_json(self,post_data_list):
-        if self.page_xpath:
-            for post_data in post_data_list:
-                swtich = False  #判断这一页是否有布隆过滤器去重
+        for post_data in post_data_list:
+            swtich = False  # 判断这一页是否有布隆过滤器去重
 
-                time.sleep(self.timeInterval)
-                response = self.post_download(self.start_url,post_data)
-                if response[1] == 200:
-                    ps = response[0]
-                    myjson = json.loads(ps)
-                    linelist = jsonpath.jsonpath(myjson,self.lineListXpath)
-                    for line in linelist:
-                        # 每一行的操作
-                        one_data_dict = {}
-                        swtich_url = False      #判断一行没有获取到url的情况，直接跳过
-                        for key, keyxpath in self.page_xpath.items():
-                            if key == "url_xpath" or key == "url":
-                                content_url = jsonpath.jsonpath(line,keyxpath)
-                                if content_url:
-                                    endUrl = urljoin(self.start_url, content_url[0])
-                                    one_data_dict["url"] = endUrl
-                                    continue
-                                else:  # 没有获取到url
-                                    swtich_url=True
+            time.sleep(self.timeInterval)
+            response = self.post_download(self.start_url, post_data)
+            if response[1] == 200:
+                ps = response[0]
+                myjson = json.loads(ps)
+                linelist = jsonpath.jsonpath(myjson, self.lineListXpath)
+                for line in linelist:
+                    # 每一行的操作
+                    one_data_dict, swtich_url = self.deal_json_page_data(self.start_url, line)
+                    if swtich_url:  # 这一行没有url，跳过这一行
+                        continue
 
-                            keystr = jsonpath.jsonpath(line,keyxpath)
-                            keystr = "".join(keystr)
+                    judge_answer = self.judge_url_in_bloom(one_data_dict)
 
-                            if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
-                                keystr = urljoin(self.start_url, keystr)
-
-                            one_data_dict[key] = keystr
-
-                        if swtich_url:  #这一行没有url，跳过这一行
-                            continue
-
-                        if self.executionType!=1:   #增量爬虫
-                            insert_url = one_data_dict["url"]
-                            if insert_url in self.bloom:
-                                swtich=True
-                            else:
-                                self.bloom.add(insert_url)
-                                one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
-                                print(one_data_dict)
-                                self.redis.lpush(self.url_key_name, one_data_dict)
-                        else:
-                            one_data_dict = json.dumps(one_data_dict)  # 将字典转化为字符串
-                            print(one_data_dict)
-                            self.redis.lpush(self.url_key_name, one_data_dict)
-                if swtich:
-                    break
-        else:
-            for post_data in post_data_list:
-                swtich = False
-
-                time.sleep(self.timeInterval)
-                response = self.post_download(self.start_url,post_data)
-                if response[1] == 200:
-                    ps = response[0]
-                    myjson = json.loads(ps)
-                    linelist = jsonpath.jsonpath(myjson,self.lineListXpath) #url的列表
-                    for ii in linelist:
-                        endUrl = urljoin(self.start_url, ii)
-                        if self.executionType != 1:  # 增量爬虫
-                            if endUrl in self.bloom:
-                                swtich=True
-                            else:
-                                self.bloom.add(endUrl)
-                                print(endUrl)
-                                self.redis.lpush(self.url_key_name, endUrl)
-                        else:
-                            print(endUrl)
-                            self.redis.lpush(self.url_key_name, endUrl)
-                if swtich:
-                    break
+                    if self.executionType != 1 and judge_answer:  # 增量爬虫
+                        swtich = True
+            if swtich:
+                break
 
     def get_post_url_list(self):
         """针对wen_type为4，即post的url变化但是post  data不变的情况
@@ -659,8 +572,9 @@ class Main():
         else:   #web_type==4,url变化但是postdata不变的情况
             self.post_url_change()
 
-    #html和json的处理，不包含post
-    def spider_start(self):
+    #html和json的get方法处理
+    def get_json_and_html(self):
+
         # 存量爬虫
         if self.executionType == 1:
             pageList = self.get_PageUrlList()  # 页数链接
@@ -687,24 +601,24 @@ class Main():
 
             # 链接页只有url的情况下
             if not self.page_xpath:
-                for start_data in start_data_urlList:   #判断第一页
+                for start_data in start_data_urlList:  # 判断第一页
                     if start_data in self.bloom:
                         logging.info(self.taskCode + "判断url在布隆过滤器成功")
-                        switch = True   # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
+                        switch = True  # 如果第一页出现以前爬过的url，switch为true，后续的就不在爬了
                     else:
                         self.bloom.add(start_data)
                         print(start_data)
                         self.redis.lpush(self.url_key_name, start_data)
 
-                if not switch:  #判断第二页及以后页数
-                    for pageIndex in range(int(self.second_page_value),int(self.end_page_value)):
+                if not switch:  # 判断第二页及以后页数
+                    for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
                         swtich2 = False
-                        theUrl = self.url_type.replace("%d",str(pageIndex))
+                        theUrl = self.url_type.replace("%d", str(pageIndex))
 
-                        if self.webType==0:
-                            second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
+                        if self.webType == 0:
+                            second_content_urlList = self.get_content_url_list(theUrl)  # 每一页的文本链接列表
                         else:
-                            second_content_urlList = self.get_json_content_url_list(theUrl)  #json格式的每一页的文本链接列表
+                            second_content_urlList = self.get_json_content_url_list(theUrl)  # json格式的每一页的文本链接列表
 
                         for second_content_url in second_content_urlList:
                             if second_content_url in self.bloom:
@@ -729,16 +643,15 @@ class Main():
                         self.redis.lpush(self.url_key_name, start_data)
                         print(start_data)
 
-
                 if not switch:  # 判断第二页及以后页数
                     for pageIndex in range(int(self.second_page_value), int(self.end_page_value)):
                         swtich2 = False
                         theUrl = self.url_type % pageIndex  # 从第二页开始构造链接
 
-                        if self.webType==0:
-                            second_content_urlList = self.get_content_url_list(theUrl) #每一页的文本链接列表
+                        if self.webType == 0:
+                            second_content_urlList = self.get_content_url_list(theUrl)  # 每一页的文本链接列表
                         else:
-                            second_content_urlList = self.get_json_content_url_list(theUrl)  #json格式的每一页的文本链接列表
+                            second_content_urlList = self.get_json_content_url_list(theUrl)  # json格式的每一页的文本链接列表
 
                         for second_content_data in second_content_urlList:
                             second_content_data_json = json.loads(second_content_data)
@@ -754,6 +667,9 @@ class Main():
                         if swtich2:
                             break
             self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+
+
+
 
     def judge_status(self,task_data):
         """处理周期执行任务，判断周期执行的任务状态，在暂停和停止状态下的处理情况"""
@@ -806,7 +722,7 @@ class Main():
                     if self.post_data or type(self.post_data) == dict:
                         self.post_start()        #处理post
                     else:
-                        self.spider_start()     #处理html和json
+                        self.get_json_and_html()     #处理get方法html和json
 
 
 if __name__ == "__main__":
