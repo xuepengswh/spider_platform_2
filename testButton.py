@@ -158,13 +158,16 @@ def get_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_st
         content_url = urljoin(start_url,content_url)
         return content_url
 
-def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num):
+def get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num,headers):
     url = start_url
-    headers = {
-		"User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-	}
+    if headers:
+        headers_request = headers
+    else:
+        headers_request = {
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        }
     post_data[page_num_str] = int(first_page_num)
-    ps = requests.post(url, headers=headers, data=post_data).content
+    ps = requests.post(url, headers=headers_request, data=post_data).content
     codeStyle = cchardet.detect(ps).get("encoding","utf-8")
     if not codeStyle:
         codeStyle="utf-8"
@@ -252,7 +255,8 @@ def hello_world():
         post_data = templateInfo_data["post"]
         page_num_str = templateInfo_data["page_num_str"]
         first_page_num = templateInfo_data["second_page_value"]
-        url = get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num)
+        headers = templateInfo_data.get("headers")
+        url = get_json_post_one_url(line_list_xpath, start_url, url_xpath,post_data,page_num_str,first_page_num,headers)
     else:
         post_data = templateInfo_data["post"]
         end_page_num = templateInfo_data["end_page_value"]
