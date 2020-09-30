@@ -418,27 +418,10 @@ class Main():
                     mytree = lxml.etree.HTML(ps)
                     linelist = mytree.xpath(self.lineListXpath)
                     for line in linelist:
-                        one_data_dict = {}
-                        swtich_url = False
-                        for key, keyxpath in self.page_xpath.items():
-                            if key == "url_xpath" or key == "url":
-                                content_url = line.xpath(keyxpath)
-                                if content_url:
-                                    endUrl = urljoin(self.start_url, content_url[0])
-                                    one_data_dict["url"] = endUrl
-                                    continue
-                                else:  # 没有获取到url
-                                    swtich_url=True
-
-                            keystr = line.xpath(keyxpath)
-                            keystr = "".join(keystr)
-
-                            if keystr == "images" or keystr == "images_xpath":  # 对图片的链接进行处理
-                                keystr = urljoin(self.start_url, keystr)
-
-                            one_data_dict[key] = keystr
+                        one_data_dict,swtich_url = self.deal_html_page_data(self.start_url, line)
                         if swtich_url:
                             continue
+
                         bloom_url = one_data_dict["url"]
                         if self.executionType != 1:  # 增量爬虫
                             if bloom_url in self.bloom:
@@ -466,7 +449,7 @@ class Main():
                     mytree = lxml.etree.HTML(ps)
                     linelist = mytree.xpath(self.lineListXpath)
                     for ii in linelist:
-                        endUrl = urljoin(self.start_url, ii)
+                        endUrl,placeholder = self.deal_html_page_data(self.start_url,ii)
                         if self.executionType != 1:  # 增量爬虫
                             if endUrl in self.bloom:
                                 logging.info(self.taskCode + "判断url在布隆过滤器成功")
