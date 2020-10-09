@@ -1,11 +1,11 @@
 import re
 import logging
 
-removes = ["发文字号：","文号:"]
+removes = ["索  引  号:","索 引 号：","索  引  号:"]
 
 # 删除removes中包含关键字
 def remove_normalize(line):
-    result = line.replace(" ","")
+    result = line
     for r in removes:
         if result.find(r) != -1:
             result = result.strip(r)
@@ -18,8 +18,8 @@ def normalize(line, options):
 
 if __name__ == '__main__':
     lines = [
-        "发文字号：体群字〔2019〕17号",
-        "文      号: 123"
+        "索 引 号：191984",
+        "索  引  号:123"
     ]
     for line in lines:
         print(normalize(line, ""))
