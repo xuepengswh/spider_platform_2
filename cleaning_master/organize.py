@@ -48,6 +48,9 @@ def remove_normalize(line):
     result = line
     # result = line.replace(" ","")
     for r in removes:
+        if has_digit(line):
+            if r=="来源：" or r=="更新时间：":  #字符包含数字并且这两个字符这种情况在后面会处理
+                continue
         if result.find(r) != -1:
             result = result.replace(r," ")
     # print(result)
@@ -81,16 +84,19 @@ def normalize_zh(line):
     # pre_processor = line
     # pre_remove = line
     if has_digit(pre_processor):
-        print(pre_processor,"111111111111111111111111111111")
         if pre_processor.find("来源：") != -1:  #字符包含来源
-            print(123)
-            pre_filter = pre_remove.split("来源：")
-            filter = []
-            for f in pre_filter:
-                if len(f.strip()) != 0 and (not has_digit(f)):
-                    filter.append(f)    
-            if len(filter) != 0:
-                pre_processor = filter[0]
+            if pre_processor.startswith("来源"):
+                pre_processor = re.compile("来源：(\w+)").findall(pre_processor)
+                if pre_processor:
+                    pre_processor = pre_processor[0]
+            else:
+                pre_filter = pre_remove.split("来源：")
+                filter = []
+                for f in pre_filter:
+                    if len(f.strip()) != 0 and (not has_digit(f)):
+                        filter.append(f)    
+                if len(filter) != 0:
+                    pre_processor = filter[0]
         elif pre_processor.find("更新时间：") != -1:
             print(456)
             pre_filter = pre_remove.split("更新时间：")
@@ -168,7 +174,7 @@ if __name__ == '__main__':
         "文章来源：办公室    更新时间：2015-04-29 12:17",
         "时间：2018年05月11日 18:30 来源：退役军人事务部",
         "2017年09月21日    来源：政策法规司",
-        "文章来源：2016年第3号    更新时间：2016-07-05 16:52",
+        # "文章来源：2016年第3号    更新时间：2016-07-05 16:52",
         "来源：中国体育报",
         "发文机关：体育总局办公厅",
         "发文机关:   江西省人民政府",
