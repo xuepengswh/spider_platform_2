@@ -320,8 +320,9 @@ class Main():
 
     def judge_url_in_bloom(self,judge_data):
         """判断url或字典里的url是否在布隆过滤器，不在的话加入布隆过滤器,并将数据加入redis"""
-        if judge_data.starstwith("{"):
-            insert_url = judge_data["url"]
+        if judge_data.startswith("{"):
+            judge_data_json = json.loads(judge_data)
+            insert_url = judge_data_json["url"]
             if insert_url in self.bloom:
                 return True
             else:
@@ -573,7 +574,7 @@ class Main():
             self.post_url_change()
 
     #html和json的get方法处理
-    def get_json_and_html(self):
+    def get_start(self):
 
         # 存量爬虫
         if self.executionType == 1:
@@ -666,9 +667,7 @@ class Main():
                                 print(second_content_data)
                         if swtich2:
                             break
-            self.bloom_writeto_db()  # 布隆过滤器保存到数据库
-
-
+        
 
 
     def judge_status(self,task_data):
@@ -722,7 +721,11 @@ class Main():
                     if self.post_data or type(self.post_data) == dict:
                         self.post_start()        #处理post
                     else:
-                        self.get_json_and_html()     #处理get方法html和json
+                        self.get_start()     #处理get方法html和json
+
+                    if self.executionType != 1:
+                        self.bloom_writeto_db()  # 布隆过滤器保存到数据库
+
 
 
 if __name__ == "__main__":
