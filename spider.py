@@ -431,8 +431,6 @@ class Main():
             if switch:  # 布隆过滤器判断有去重
                 break
 
-        if self.executionType != 1:  # 增量爬虫
-            self.bloom_writeto_db()
 
     def post_json(self,post_data_list):
         for post_data in post_data_list:
@@ -549,10 +547,6 @@ class Main():
 
                 if swtich:
                     break
-        if self.executionType != 1:  # 增量爬虫
-            self.bloom_writeto_db()
-
-
 
 
         url_list = self.get_post_url_list()
