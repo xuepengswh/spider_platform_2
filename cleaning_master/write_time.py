@@ -27,6 +27,7 @@ pattern = [
 ]
 
 def get_date(str):
+
     for p in pattern:
         try:
             date = time.strptime(str, p)
@@ -44,7 +45,7 @@ def get_str(date):
 
 logging.basicConfig(level=logging.INFO)
 
-removes = ["成文时间：", "(", ")", "[", "]", "{", "}","成文日期："]
+removes = ["成文时间：", "(", ")", "[", "]", "{", "}","成文日期：","成文日期:","成文日期 ：","生成日期:","发布日期 ："]
 
 # 删除removes中包含关键字
 def remove_normalize(line):
@@ -53,12 +54,12 @@ def remove_normalize(line):
     for r in removes:
         if result.find(r) != -1:
             result = result.replace(r,"")
-
+            
     return False, result.strip()
 
 # 正则提取时间
 def extract_time(line):
-    result = line.replace(" ","")
+    result = line
     if line.find("来源：") != -1:
         matcher = re.search(r"[0-9/: \-年月日]+", result, re.I)
         if matcher:
@@ -74,6 +75,16 @@ def extract_time(line):
     return result.strip()
 
 def normalize(line, options):
+    line = line.replace("++__))((","")
+    if len(line)==13:#时间戳处理
+        try:  
+            str = int(line)
+            timeArray = str/1000
+            timeArray = time.localtime(timeArray)
+            end_time = time.strftime("%Y-%m-%d", timeArray)
+            return [end_time]
+        except :
+            pass
     extract = extract_time(line.strip())
     label, remove = remove_normalize(extract)
     date = get_date(remove)
@@ -83,8 +94,16 @@ def normalize(line, options):
 
 if __name__ == '__main__':
     lines = [
-        "成文日期：2017-8-24",
-        "成文日期：2019年10月23日"
+        # "成文日期：2017-8-24",
+        # "成文日期：2019年10月23日",
+        # "成文日期 ： 2020-05-14 10:33:11",
+        # "生成日期:           2013年12月13日",
+        # "成文日期：2020-07-22",
+        # "成文日期:   2006-04-14",
+        # "成文日期: ++__))(( 2004-05-20",
+        # "生成日期:           2020年09月21日",
+        "1137052800000",
+        "发布日期 ： 2020-08-27 16:35:59"
     ]
     for line in lines:
         logging.info(normalize(line, ""))
