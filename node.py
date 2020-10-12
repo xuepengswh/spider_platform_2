@@ -190,12 +190,16 @@ class Main():
 
     def clean_data(self,data):
         web_site = data["web_site"]
+        if self.langCode == "zh":   #中文和外文采用不同的处理方法
+            lang_str = "zh"
+        else:
+            lang_str = "en"
         if "statement_time_source" in data:
             data["statement_time"] = "".join( clean_time.normalize(data["statement_time_source"],"")  )
         if "written_time_source" in data:
             data["written_time"] = "".join(  clean_written_time.normalize(data["written_time_source"],"")  )
         if "organization_source" in data:
-            data["organization"] = "".join( clean_organize.normalize(data["organization_source"],"zh",web_site)  )
+            data["organization"] = "".join( clean_organize.normalize(data["organization_source"],lang_str)  )
         if "subject_class_source" in data:
             data["subject_class"] = "".join(  clean_subject.normalize(data["subject_class_source"],"")  )
         if "industrial_class_source" in data:
@@ -205,9 +209,9 @@ class Main():
         if "policy_index_number_source" in data:
             data["policy_index_number"] = "".join(  clean_policy_index_number.normalize(data["policy_index_number_source"],""))
         if "source_website_source" in data:
-            data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],"zh",web_site) )
+            data["source_website"] = "".join( clean_source_website.normalize(data["source_website_source"],lang_str,web_site) )
         if "issued_number_source" in data:
-            data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],"zh"))
+            data["issued_number"] = "".join(  clean_issued_number.normalize(data["issued_number_source"],lang_str))
         return data
 
     def get_crawl_time(self):
