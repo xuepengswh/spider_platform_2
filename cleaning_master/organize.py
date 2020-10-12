@@ -1,6 +1,40 @@
 import re
 import logging
-# import utils.number_utils as num_utils
+
+pattern = [
+    u"%Y-%m-%d",
+    u"%Y-%m-%d %H:%M",
+    u"%Y-%m-%d  %H:%M",
+    u"%Y-%m-%d %H:%M:%S",
+    u"%Y-%m-%d  %H:%M:%S",
+    u"%Y/%m/%d",
+    u"%Y/%m/%d %H:%M",
+    u"%Y/%m/%d  %H:%M",
+    u"%Y/%m/%d %H:%M:%S",
+    u"%Y/%m/%d  %H:%M:%S",
+    u"%Y %m/%d",
+    u"%Y %m/%d %H:%M",
+    u"%Y %m/%d  %H:%M",
+    u"%Y %m/%d %H:%M:%S",
+    u"%Y %m/%d  %H:%M:%S",
+    u"%Y年%m月%d日",
+    u"%Y年%m月%d日 %H时%M分",
+    u"%Y年%m月%d日  %H时%M分",
+    u"%Y年%m月%d日 %H时%M分%S秒",
+    u"%Y年%m月%d日  %H时%M分%S秒"
+]
+
+def get_date(str):
+    for p in pattern:
+        try:
+            date = time.strptime(str, p)
+            if date:
+                return date
+        except:
+            continue
+    return None
+
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -49,21 +83,21 @@ def normalize_zh(line):
                     filter.append(f)
             if len(filter) != 0:
                 pre_processor = filter[0]
-        # elif pre_processor.find("更新时间：") != -1:
-        #     pre_filter = pre_remove.split("更新时间：")
-        #     filter = []
-        #     for f in pre_filter:
-        #         if len(f.strip()) != 0 and (not has_digit(f)):
-        #             filter.append(f)
-        #     if len(filter) != 0:
-        #         pre_processor = filter[0]
-        #     else:
-        #         post_filter = []
-        #         for f in pre_filter:
-        #             if len(f.strip()) != 0 and (not num_utils.get_date(f)):
-        #                 post_filter.append(f)
-        #         if len(post_filter) != 0:
-        #             pre_processor = post_filter[0]
+        elif pre_processor.find("更新时间：") != -1:
+            pre_filter = pre_remove.split("更新时间：")
+            filter = []
+            for f in pre_filter:
+                if len(f.strip()) != 0 and (not has_digit(f)):
+                    filter.append(f)
+            if len(filter) != 0:
+                pre_processor = filter[0]
+            else:
+                post_filter = []
+                for f in pre_filter:
+                    if len(f.strip()) != 0 and (not get_date(f)):
+                        post_filter.append(f)
+                if len(post_filter) != 0:
+                    pre_processor = post_filter[0]
         else:
             pre_rule = [r'[\u4e00-\u9fa5]+']
             pre_processor = rule_normalize(pre_remove, pre_rule)
@@ -90,10 +124,10 @@ def normalize_en(line):
 
 def normalize(line, options):
     if isinstance(line, str):
-        if options == "zh":
-            return normalize_zh(line)
-        elif options == "en":
+        if options == "en":
             return normalize_en(line)
+        else:
+            return normalize_zh(line)
     return [line]
 
 if __name__ == '__main__':
@@ -112,7 +146,9 @@ if __name__ == '__main__':
         "文章来源：办公室    更新时间：2015-04-29 12:17",
         "时间：2018年05月11日 18:30 来源：退役军人事务部",
         "2017年09月21日    来源：政策法规司",
-        "文章来源：2016年第3号    更新时间：2016-07-05 16:52"
+        "文章来源：2016年第3号    更新时间：2016-07-05 16:52",
+        "2020年07月02日    来源：政策法规司",
+        "2017年01月19日\xa0\xa0\xa0\xa0来源：政策法规司"
     ]
     for line in lines:
         logging.info(normalize(line, "zh"))
