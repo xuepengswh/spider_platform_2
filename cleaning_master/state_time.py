@@ -48,11 +48,16 @@ def get_str(date):
 
 logging.basicConfig(level=logging.INFO)
 
-removes = ["更新时间：", "发布时间：", "(", ")", "[", "]", "{", "}","【","】","发布日期：","发布日期 ：","发布日期","2017-11-16 21:20:34","日期：","字体：","; Date of vote"]
+removes_zh = ["更新时间：", "发布时间：", "(", ")", "[", "]", "{", "}","【","】","发布日期：","发布日期 ：","发布日期","2017-11-16 21:20:34","日期：","字体："]
+removes_en = ["; Date of vote"]
 
 # 删除removes中包含关键字
-def remove_normalize(line):
+def remove_normalize(line,options):
     result = line
+    if options=="zh":
+        removes = removes_zh
+    else:
+        removes = removes_en
     for r in removes:
         if result.find(r) != -1:
             result = result.replace(r,"")
@@ -78,12 +83,13 @@ def extract_time(line):
 
 def normalize(line, options):
     line = line.replace("++__))((","")
-    extract = extract_time(line.strip()) #去除两边空格
-    label, remove = remove_normalize(extract)   #去除关键字
+    extract = extract_time(line.strip()) 
+    label, remove = remove_normalize(extract,options)   #去除关键字
     date = get_date(remove)
     if date:
         return [get_str(date)]
     return []
+
 
 if __name__ == '__main__':
     lines = [
@@ -120,4 +126,4 @@ if __name__ == '__main__':
         "2020年"
     ]
     for line in lines:
-        logging.info(normalize(line, ""))
+        logging.info(normalize(line, "en"))
